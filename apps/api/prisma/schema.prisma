@@ -1,0 +1,469 @@
+// Document Hub — domain schema
+// See docs/architecture.md and docs/applicability-resolution.md for the
+// reasoning behind stable IDs, serial-range semantics, specificity scoring,
+// and the publication snapshot / historical-resolution strategy.
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ---------------------------------------------------------------------------
+// Identity / Tenancy
+// ---------------------------------------------------------------------------
+
+model Organization {
+  id              String   @id @default(uuid())
+  stableId        String   @unique @default(cuid())
+  name            String
+  slug            String   @unique
+  logoUrl         String?
+  defaultLanguage String   @default("de")
+  timezone        String   @default("UTC")
+  status          OrganizationStatus @default(ACTIVE)
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  memberships       OrganizationMembership[]
+  productFamilies    ProductFamily[]
+  products           Product[]
+  variants           ProductVariant[]
+  batches            Batch[]
+  units              Unit[]
+  documents          Document[]
+  documentRevisions  DocumentRevision[]
+  applicabilityRules ApplicabilityRule[]
+  publications       Publication[]
+  auditEvents        AuditEvent[]
+
+  @@map("organizations")
+}
+
+enum OrganizationStatus {
+  ACTIVE
+  SUSPENDED
+}
+
+model User {
+  id           String   @id @default(uuid())
+  email        String   @unique
+  passwordHash String
+  fullName     String
+  status       UserStatus @default(ACTIVE)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  memberships OrganizationMembership[]
+
+  @@map("users")
+}
+
+enum UserStatus {
+  ACTIVE
+  DISABLED
+}
+
+model OrganizationMembership {
+  id             String   @id @default(uuid())
+  userId         String
+  organizationId String
+  role           MembershipRole
+  status         MembershipStatus @default(ACTIVE)
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  user         User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, organizationId])
+  @@index([organizationId])
+  @@map("organization_memberships")
+}
+
+enum MembershipRole {
+  VIEWER
+  EDITOR
+  PUBLISHER
+  ADMINISTRATOR
+}
+
+enum MembershipStatus {
+  ACTIVE
+  INVITED
+  SUSPENDED
+}
+
+// ---------------------------------------------------------------------------
+// Product domain
+// ---------------------------------------------------------------------------
+
+model ProductFamily {
+  id                 String   @id @default(uuid())
+  stableId           String   @unique @default(cuid())
+  organizationId     String
+  name               String
+  description        String?
+  internalReference  String?
+  createdAt          DateTime @default(now())
+  updatedAt          DateTime @updatedAt
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  products     Product[]
+  applicabilityRules ApplicabilityRule[]
+
+  @@index([organizationId])
+  @@map("product_families")
+}
+
+model Product {
+  id                    String   @id @default(uuid())
+  stableId              String   @unique @default(cuid())
+  organizationId        String
+  productFamilyId       String?
+  name                  String
+  internalProductNumber String?
+  modelDesignation      String?
+  description           String?
+  status                ProductStatus @default(ACTIVE)
+  createdAt             DateTime @default(now())
+  updatedAt             DateTime @updatedAt
+
+  organization  Organization   @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  productFamily ProductFamily? @relation(fields: [productFamilyId], references: [id], onDelete: SetNull)
+  variants      ProductVariant[]
+  batches       Batch[]
+  units         Unit[]
+  applicabilityRules ApplicabilityRule[]
+
+  @@index([organizationId])
+  @@index([productFamilyId])
+  @@map("products")
+}
+
+enum ProductStatus {
+  DRAFT
+  ACTIVE
+  DISCONTINUED
+}
+
+model ProductVariant {
+  id                    String   @id @default(uuid())
+  stableId              String   @unique @default(cuid())
+  organizationId        String
+  productId             String
+  name                  String
+  internalVariantNumber String?
+  description           String?
+  status                ProductStatus @default(ACTIVE)
+  createdAt             DateTime @default(now())
+  updatedAt             DateTime @updatedAt
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  product      Product      @relation(fields: [productId], references: [id], onDelete: Cascade)
+  units        Unit[]
+  applicabilityRules ApplicabilityRule[]
+
+  @@index([organizationId])
+  @@index([productId])
+  @@map("product_variants")
+}
+
+model Batch {
+  id                String    @id @default(uuid())
+  stableId          String    @unique @default(cuid())
+  organizationId    String
+  productId         String
+  name              String
+  manufacturedFrom  DateTime?
+  manufacturedTo    DateTime?
+  internalReference String?
+  createdAt         DateTime  @default(now())
+  updatedAt         DateTime  @updatedAt
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  product      Product      @relation(fields: [productId], references: [id], onDelete: Cascade)
+  units        Unit[]
+  applicabilityRules ApplicabilityRule[]
+
+  @@index([organizationId])
+  @@index([productId])
+  @@map("batches")
+}
+
+model Unit {
+  id                String   @id @default(uuid())
+  stableId          String   @unique @default(cuid())
+  organizationId    String
+  productId         String
+  variantId         String?
+  batchId           String?
+  serialNumber      String
+  // Normalized serial decomposition — see docs/applicability-resolution.md
+  // ("Serial Number Handling"). Computed once at write time and never
+  // recomputed implicitly, so range semantics stay stable.
+  serialPrefix      String
+  serialSequence    BigInt
+  serialSeqLength   Int
+  manufacturedAt    DateTime?
+  deliveredAt       DateTime?
+  internalReference String?
+  status            UnitStatus @default(ACTIVE)
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+
+  organization Organization    @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  product      Product         @relation(fields: [productId], references: [id], onDelete: Cascade)
+  variant      ProductVariant? @relation(fields: [variantId], references: [id], onDelete: SetNull)
+  batch        Batch?          @relation(fields: [batchId], references: [id], onDelete: SetNull)
+  applicabilityRules ApplicabilityRule[]
+
+  @@unique([organizationId, serialNumber])
+  @@index([organizationId])
+  @@index([productId])
+  @@index([variantId])
+  @@index([batchId])
+  @@index([organizationId, serialPrefix, serialSequence])
+  @@map("units")
+}
+
+enum UnitStatus {
+  ACTIVE
+  DECOMMISSIONED
+}
+
+// ---------------------------------------------------------------------------
+// Document domain
+// ---------------------------------------------------------------------------
+
+model Document {
+  id             String   @id @default(uuid())
+  stableId       String   @unique @default(cuid())
+  organizationId String
+  name           String
+  documentType   String
+  description    String?
+  status         DocumentStatus @default(ACTIVE)
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  organization Organization       @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  revisions    DocumentRevision[]
+
+  @@index([organizationId])
+  @@map("documents")
+}
+
+enum DocumentStatus {
+  ACTIVE
+  ARCHIVED
+}
+
+model DocumentRevision {
+  id             String   @id @default(uuid())
+  stableId       String   @unique @default(cuid())
+  organizationId String
+  documentId     String
+
+  revision String
+  language String
+
+  storageKey       String
+  originalFilename String
+  mimeType         String
+  fileSize         Int
+  sha256           String
+
+  status RevisionStatus @default(DRAFT)
+
+  uploadedById String
+  uploadedAt   DateTime @default(now())
+
+  internalNote      String?
+  changeDescription String?
+
+  createdAt DateTime @default(now())
+
+  organization       Organization         @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  document           Document             @relation(fields: [documentId], references: [id], onDelete: Cascade)
+  applicabilityRules ApplicabilityRule[]
+  publications       Publication[]
+
+  @@unique([documentId, revision, language])
+  @@index([organizationId])
+  @@index([documentId])
+  @@index([status])
+  @@map("document_revisions")
+}
+
+enum RevisionStatus {
+  DRAFT
+  IN_REVIEW
+  APPROVED
+  RETIRED
+}
+
+// ---------------------------------------------------------------------------
+// Applicability domain
+// ---------------------------------------------------------------------------
+// A rule attaches a DocumentRevision to a scope. Rules are mutable while the
+// owning revision is not yet published (or between publishes); the *current*
+// rule set for a revision is snapshotted, immutably, into a
+// PublicationSnapshot every time that revision is published. See
+// docs/applicability-resolution.md for specificity scoring and conflict
+// semantics.
+
+model ApplicabilityRule {
+  id             String @id @default(uuid())
+  organizationId String
+  revisionId     String
+
+  productFamilyId String?
+  productId       String?
+  variantId       String?
+  batchId         String?
+  unitId          String?
+
+  // Raw + normalized serial range bounds (inclusive). Null bound = open-ended.
+  serialFrom           String?
+  serialFromPrefix     String?
+  serialFromSequence   BigInt?
+  serialTo             String?
+  serialToPrefix       String?
+  serialToSequence     BigInt?
+
+  validFrom  DateTime?
+  validUntil DateTime?
+
+  explicitExclusion Boolean @default(false)
+
+  createdById String
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  organization  Organization      @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  revision      DocumentRevision  @relation(fields: [revisionId], references: [id], onDelete: Cascade)
+  productFamily ProductFamily?    @relation(fields: [productFamilyId], references: [id], onDelete: Cascade)
+  product       Product?          @relation(fields: [productId], references: [id], onDelete: Cascade)
+  variant       ProductVariant?   @relation(fields: [variantId], references: [id], onDelete: Cascade)
+  batch         Batch?            @relation(fields: [batchId], references: [id], onDelete: Cascade)
+  unit          Unit?             @relation(fields: [unitId], references: [id], onDelete: Cascade)
+
+  @@index([organizationId])
+  @@index([revisionId])
+  @@index([productId])
+  @@index([variantId])
+  @@index([batchId])
+  @@index([unitId])
+  @@map("applicability_rules")
+}
+
+// ---------------------------------------------------------------------------
+// Publication domain
+// ---------------------------------------------------------------------------
+
+model Publication {
+  id                 String @id @default(uuid())
+  stableId           String @unique @default(cuid())
+  organizationId     String
+  documentRevisionId String
+
+  status PublicationStatus @default(ACTIVE)
+
+  publishedById String
+  publishedAt   DateTime @default(now())
+
+  supersededAt   DateTime?
+  supersededById String?
+
+  revokedAt   DateTime?
+  revokedById String?
+
+  createdAt DateTime @default(now())
+
+  organization     Organization       @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  documentRevision DocumentRevision   @relation(fields: [documentRevisionId], references: [id], onDelete: Cascade)
+  snapshot         PublicationSnapshot?
+
+  @@index([organizationId])
+  @@index([documentRevisionId])
+  @@index([status])
+  @@index([organizationId, status, publishedAt])
+  @@map("publications")
+}
+
+enum PublicationStatus {
+  ACTIVE
+  SUPERSEDED
+  REVOKED
+}
+
+// Immutable, append-only record of what was actually published. Never
+// updated after creation — historical resolution and the immutability tests
+// (spec §71) depend on this row never changing.
+model PublicationSnapshot {
+  id            String @id @default(uuid())
+  publicationId String @unique
+
+  organizationId String
+
+  documentId         String
+  documentStableId   String
+  documentRevisionId String
+  documentName       String
+  documentType       String
+  revision           String
+  language           String
+
+  filename    String
+  mimeType    String
+  fileSize    Int
+  sha256      String
+  storageKey  String
+
+  // Frozen copy of the ApplicabilityRule rows that applied to the revision
+  // at the moment of publish. Shape: AppliedRuleSnapshot[] (see
+  // src/applicability/applicability.types.ts).
+  applicabilityRules Json
+
+  publishedAt   DateTime
+  publishedById String
+
+  previousPublicationId String?
+
+  createdAt DateTime @default(now())
+
+  publication Publication @relation(fields: [publicationId], references: [id], onDelete: Cascade)
+
+  @@index([organizationId])
+  @@index([documentId, language])
+  @@map("publication_snapshots")
+}
+
+// ---------------------------------------------------------------------------
+// Audit domain
+// ---------------------------------------------------------------------------
+
+model AuditEvent {
+  id             String   @id @default(uuid())
+  organizationId String
+  timestamp      DateTime @default(now())
+  actorId        String?
+  action         String
+  objectType     String
+  objectId       String
+  before         Json?
+  after          Json?
+  ipAddress      String?
+  userAgent      String?
+  requestId      String?
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+
+  @@index([organizationId, timestamp])
+  @@index([organizationId, objectType, objectId])
+  @@map("audit_events")
+}

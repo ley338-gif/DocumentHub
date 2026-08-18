@@ -1,0 +1,22 @@
+node_modules/
+dist/
+coverage/
+*.log
+
+# Environment files (never commit secrets/local config). .env.test is
+# intentionally NOT ignored — it only holds local docker-compose dev
+# credentials for the throwaway test database, not real secrets, and is
+# needed for the e2e acceptance test to be reproducible out of the box.
+.env
+.env.*.local
+apps/api/.env
+
+# Local object storage (dev/test filesystem driver)
+apps/api/storage/
+apps/api/storage-test/
+
+# OS/editor cruft
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/
