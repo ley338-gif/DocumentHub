@@ -5,7 +5,15 @@
 - NestJS 10 (Express platform) + TypeScript
 - PostgreSQL via Prisma 5
 - JWT auth (passport-jwt), bcrypt password hashing
-- Pluggable object storage: local filesystem (dev) or S3/MinIO (prod-like)
+- Pluggable object storage: local filesystem, or any S3-compatible endpoint
+  (`STORAGE_DRIVER=s3`). Document Hub integrates only against the generic S3
+  API (`@aws-sdk/client-s3`) — it has no dependency on any specific S3
+  provider. `docker-compose.yml` runs MinIO purely as convenient local
+  development infrastructure (so `docker compose up` works without an AWS
+  account); MinIO's binary is never embedded in, bundled with, or modified
+  by Document Hub, and production/self-hosted deployments are free to point
+  `STORAGE_S3_*` at AWS S3, another S3-compatible provider, or their own
+  MinIO instance.
 
 ## Module layout (`apps/api/src`)
 
