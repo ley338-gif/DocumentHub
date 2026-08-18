@@ -1,11 +1,11 @@
 # Document Hub — Frontend (`apps/web`)
 
-React + TypeScript + Vite frontend for Document Hub. This is the first
-slice: the shared design system, the authenticated app shell with a bare
-login flow, and the public QR-scan pages. The rest of the authenticated
-admin UI (products, documents, applicability editor, publish wizard, CSV
-import, audit UI, real dashboard) is deliberately not built yet — see
-"What's built" below.
+React + TypeScript + Vite frontend for Document Hub. Built so far: the
+shared design system, the authenticated app shell with a bare login flow,
+the public QR-scan pages, and the authenticated Products and Documents admin
+screens (with the document revision lifecycle). The applicability rule
+editor, publish wizard, CSV import UI, audit UI, and real dashboard KPIs are
+deliberately not built yet — see "What's built" below.
 
 ## Running locally
 
@@ -42,8 +42,20 @@ npm run preview      # serve the production build locally
 | `/u/:stableId` | none | Public unit page — mirrors `GET /u/:stableId`. |
 | `/login` | none | Login screen. |
 | `/app` | required | Authenticated app shell (sidebar + top bar). Redirects to `/login` if there's no valid session. |
-| `/app` (index) | required | Dashboard — placeholder only this run. |
-| `/app/products`, `/app/documents`, `/app/publications`, `/app/audit` | required | Sidebar nav stubs — no pages behind them yet (later phases). |
+| `/app` (index) | required | Dashboard — placeholder only, still deferred. |
+| `/app/products` | required | Products list — server-paginated, `Table`/`Pagination`. |
+| `/app/products/:id` | required | Product detail — tabs: Übersicht, Varianten, Einheiten, Dokumentation (read-only "currently applicable documents" via `GET /api/publications/resolve?productId=`), Öffentlicher Zugriff (stable ID, public URL, QR via authenticated blob fetch), Verlauf (placeholder, see below). |
+| `/app/documents` | required | Documents list — server-paginated; Sprachen/Aktuelle Revision are derived client-side from each document's revisions (the API doesn't compute them). |
+| `/app/documents/:id` | required | Document detail — tabs: Übersicht, Revisionen (state-machine actions gated by role + current status, real backend errors surfaced via `Toast`), Anwendbarkeit (read-only, per revision), Veröffentlichungen (read-only), Dateien (upload form), Verlauf (placeholder). |
+| `/app/publications`, `/app/audit` | required | Sidebar nav stubs — no pages behind them yet (later phases: publish wizard, audit UI). |
+
+**Audit history**: `GET /api/audit` only supports filtering by
+`objectType`/`action`/`from`/`to`, not `objectId`, so there is no way to
+fetch a true per-object history without fetching the whole org log and
+filtering client-side. Rather than misrepresent that as a real per-object
+audit trail, the "Verlauf" tab on both Product Detail and Document Detail is
+an honest "not available yet" placeholder (`src/features/shared/HistoryTab.tsx`)
+until the audit endpoint gains an `objectId` filter.
 
 The public routes are intentionally at the app's root (`/p/...`, `/u/...`),
 matching `PUBLIC_BASE_URL` in `apps/api/.env.example` — a QR code encodes
@@ -77,13 +89,31 @@ src/
     session-storage.ts   localStorage helpers for the JWT + current org id
     format.ts            formatFileSize, languageLabel
   features/
-    auth/               auth-store.ts (Zustand), LoginPage, RequireAuth (route guard)
+    auth/               auth-store.ts (Zustand), LoginPage, RequireAuth (route guard),
+                        useCurrentRole (current org membership role)
     app-shell/           AppLayout — wires AppShell + Sidebar + org switcher for /app/*
     dashboard/            placeholder DashboardPage
+    products/              ProductsListPage, ProductDetailPage + tabs/, api.ts,
+                            ManageFamiliesDialog, ManageBatchesDialog, CreateProductDialog
+    documents/              DocumentsListPage, DocumentDetailPage + tabs/, api.ts,
+                            CreateDocumentDialog
+    shared/                 HistoryTab (the audit "not available yet" placeholder)
     public/               public QR-scan pages: PublicProductPage, PublicUnitPage,
                            PublicationList, LanguageSelector, usePublicResource (loading/
                            not-found/error state machine), useLanguageFilter
 ```
+
+`src/lib/roles.ts` mirrors the backend's role hierarchy
+(`VIEWER < EDITOR < PUBLISHER < ADMINISTRATOR`) purely for UI purposes
+(hide/disable actions a role can't perform) — every mutating route is
+independently guarded server-side by `@Roles()`/`RolesGuard`, so hiding a
+button here is UX politeness, never the actual access control.
+`src/lib/use-paginated.ts` is the shared server-pagination hook used by both
+Products and Documents lists (and Units within Product Detail) — it has no
+built-in "search" concept because the Products/Documents list endpoints
+don't support a search query param server-side, and faking one client-side
+over a single page of results would silently misrepresent the paginated
+contract.
 
 Auth/organization state lives in a small Zustand store
 (`src/features/auth/auth-store.ts`): `{ user, token, organizations,
@@ -117,12 +147,16 @@ download URL itself.
 
 ## What's built vs. deferred
 
-Built this run: project scaffold, design system, API client + typed error
-handling, auth/organization context, login screen, empty authenticated
-dashboard, and the public product/unit pages (real states, real backend
-integration).
+Built so far: project scaffold, design system, API client + typed error
+handling, auth/organization context, login screen, the public product/unit
+pages (real states, real backend integration), and the authenticated
+Products and Documents admin screens described above — including the
+document revision lifecycle (upload → submit → approve → retire) wired to
+the real state-transition endpoints, the authenticated QR/file blob-fetch
+pattern, and role-aware hiding of mutation controls.
 
-Deferred to later phases: products list, product/document detail,
-applicability rule editor, publish wizard, CSV import UI, audit log UI, the
-real dashboard (KPI tiles, charts), and full RBAC-aware admin chrome beyond
-the bare shell.
+Deferred to later phases: the applicability rule editor (create/edit —
+listing existing rules read-only is built), the publish wizard
+(create/revoke — read-only publication lists are built), CSV import UI,
+a real audit log UI (the per-object "Verlauf" tabs are honest placeholders,
+see above), and the real dashboard (KPI tiles, charts).
