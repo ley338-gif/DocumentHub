@@ -7,6 +7,7 @@ import { AllExceptionsFilter } from "../src/common/errors/all-exceptions.filter"
 import { PrismaService } from "../src/prisma/prisma.service";
 import { parseSerial } from "../src/applicability/serial";
 import { PublicationResolverService } from "../src/publications/resolver.service";
+import { GLOBAL_PREFIX, GLOBAL_PREFIX_EXCLUDES } from "../src/common/global-prefix";
 
 jest.setTimeout(60000);
 
@@ -22,7 +23,7 @@ describe("Acceptance (spec §69-78)", () => {
     app = moduleRef.createNestApplication();
     app.useGlobalPipes(new ValidationPipe({ whitelist: true, transform: true, forbidNonWhitelisted: true }));
     app.useGlobalFilters(new AllExceptionsFilter());
-    app.setGlobalPrefix("api", { exclude: ["health", "p/:stableId", "u/:stableId"] });
+    app.setGlobalPrefix(GLOBAL_PREFIX, { exclude: GLOBAL_PREFIX_EXCLUDES });
     await app.init();
     http = app.getHttpServer();
     prisma = app.get(PrismaService);

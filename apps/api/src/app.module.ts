@@ -10,6 +10,7 @@ import { DocumentsModule } from "./documents/documents.module";
 import { ApplicabilityModule } from "./applicability/applicability.module";
 import { PublicationsModule } from "./publications/publications.module";
 import { ImportsModule } from "./imports/imports.module";
+import { PublicModule } from "./public/public.module";
 
 @Module({
   imports: [
@@ -24,6 +25,7 @@ import { ImportsModule } from "./imports/imports.module";
     ApplicabilityModule,
     PublicationsModule,
     ImportsModule,
+    PublicModule,
   ],
 })
 export class AppModule {}
