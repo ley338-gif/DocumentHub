@@ -28,6 +28,8 @@
 | `documents` | Document + DocumentRevision (upload, state machine, download). |
 | `applicability` | Applicability rule CRUD + the pure specificity/matching functions. |
 | `publications` | Publish transaction, revoke, and the read-only resolver used everywhere resolution is needed. |
+| `imports` | CSV unit import: preview (parse + validate, no persistence) → commit (bulk `createMany`). See `docs/csv-import.md`. |
+| `public` | Unauthenticated `/p/:stableId` and `/u/:stableId` public pages + scoped downloads, rate-limited. See `docs/public-access.md`. |
 
 ## Request pipeline
 
@@ -77,3 +79,18 @@ sanitize it upstream.
 
 See `docs/applicability-resolution.md` and `docs/publication-lifecycle.md`
 for the two most important pieces of business logic in this system.
+
+## CSV import and public access
+
+`docs/csv-import.md` and `docs/public-access.md` cover the two features
+built on top of the above: bulk unit import from CSV (Editor+, internal,
+authenticated) and unauthenticated public product/unit pages reachable from
+a printed QR code (`GET /api/products/:id/qr.svg`/`.png`,
+`GET /api/units/:id/qr.svg`/`.png` — internal, Viewer+, using the `qrcode`
+package). Both reuse existing building blocks rather than introducing
+parallel ones: the import commits through the same `Unit` table and
+`parseSerial()` normalization as the interactive "create unit" endpoint, and
+every public page is answered by the same `PublicationResolverService` the
+internal `/api/publications/resolve` endpoint uses — there is exactly one
+place in the codebase that decides "what documents apply to this
+product/unit right now."
