@@ -5,6 +5,10 @@ import { AppLayout } from "./features/app-shell/AppLayout";
 import { DashboardPage } from "./features/dashboard/DashboardPage";
 import { PublicProductPage } from "./features/public/PublicProductPage";
 import { PublicUnitPage } from "./features/public/PublicUnitPage";
+import { ProductsListPage } from "./features/products/ProductsListPage";
+import { ProductDetailPage } from "./features/products/ProductDetailPage";
+import { DocumentsListPage } from "./features/documents/DocumentsListPage";
+import { DocumentDetailPage } from "./features/documents/DocumentDetailPage";
 
 export default function App() {
   return (
@@ -16,11 +20,17 @@ export default function App() {
 
       <Route path="/login" element={<LoginPage />} />
 
-      {/* Authenticated app tree. Only Dashboard is a real page this run —
-          Products, Documents, Publications, Audit are later phases. */}
+      {/* Authenticated app tree. Products and Documents (with revisions) are
+          real pages this run — the applicability rule editor, publish
+          wizard, CSV import UI, audit UI, and real dashboard KPIs are later
+          phases. */}
       <Route element={<RequireAuth />}>
         <Route path="/app" element={<AppLayout />}>
           <Route index element={<DashboardPage />} />
+          <Route path="products" element={<ProductsListPage />} />
+          <Route path="products/:id" element={<ProductDetailPage />} />
+          <Route path="documents" element={<DocumentsListPage />} />
+          <Route path="documents/:id" element={<DocumentDetailPage />} />
         </Route>
       </Route>
 
