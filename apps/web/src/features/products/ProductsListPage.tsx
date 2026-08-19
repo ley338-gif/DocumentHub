@@ -57,6 +57,9 @@ export function ProductsListPage() {
               <Button variant="outline" onClick={() => setFamiliesOpen(true)}>
                 Produktfamilien verwalten
               </Button>
+              <Button variant="outline" onClick={() => navigate("/app/products/import")}>
+                Einheiten importieren
+              </Button>
               <Button onClick={() => setCreateOpen(true)}>Neues Produkt</Button>
             </div>
           ) : undefined

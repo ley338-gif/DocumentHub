@@ -10,6 +10,7 @@ import { ProductDetailPage } from "./features/products/ProductDetailPage";
 import { DocumentsListPage } from "./features/documents/DocumentsListPage";
 import { DocumentDetailPage } from "./features/documents/DocumentDetailPage";
 import { PublishWizardPage } from "./features/publications/PublishWizardPage";
+import { ImportWizardPage } from "./features/imports/ImportWizardPage";
 
 export default function App() {
   return (
@@ -29,6 +30,7 @@ export default function App() {
         <Route path="/app" element={<AppLayout />}>
           <Route index element={<DashboardPage />} />
           <Route path="products" element={<ProductsListPage />} />
+          <Route path="products/import" element={<ImportWizardPage />} />
           <Route path="products/:id" element={<ProductDetailPage />} />
           <Route path="documents" element={<DocumentsListPage />} />
           <Route path="documents/:id" element={<DocumentDetailPage />} />

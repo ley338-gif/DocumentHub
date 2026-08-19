@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { useNavigate, useParams } from "react-router-dom";
+import { useNavigate, useParams, useSearchParams } from "react-router-dom";
 import { Button, PageHeader, Spinner, Tabs } from "../../design-system";
 import type { Product, ProductFamily } from "../../lib/api-types";
 import { ApiError } from "../../lib/api-error";
@@ -32,7 +32,12 @@ export function ProductDetailPage() {
   const [families, setFamilies] = useState<ProductFamily[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [activeTab, setActiveTab] = useState("overview");
+  // Supports deep-linking straight to a tab (e.g. `?tab=units` after a CSV
+  // import commit, so "reload the Units view" lands the user exactly where
+  // they can verify the imported units without an extra click).
+  const [searchParams] = useSearchParams();
+  const initialTab = searchParams.get("tab");
+  const [activeTab, setActiveTab] = useState(TABS.some((t) => t.key === initialTab) ? initialTab! : "overview");
 
   useEffect(() => {
     if (!id) return;
