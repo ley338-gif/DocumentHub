@@ -1,4 +1,5 @@
 import { Body, Controller, Get, Post, UseGuards } from "@nestjs/common";
+import { SkipThrottle, Throttle, ThrottlerGuard } from "@nestjs/throttler";
 import { AuthService } from "./auth.service";
 import { RegisterDto } from "./dto/register.dto";
 import { LoginDto } from "./dto/login.dto";
@@ -19,11 +20,21 @@ export class AuthController {
     return { mode: registrationMode() };
   }
 
+  // A route is checked against every named throttler configured in
+  // RateLimitModule unless explicitly skipped — @SkipThrottle({default:true})
+  // opts these out of the unrelated public-routes "default" bucket so they
+  // are governed only by "auth".
+  @UseGuards(ThrottlerGuard)
+  @SkipThrottle({ default: true })
+  @Throttle({ auth: {} })
   @Post("register")
   register(@Body() dto: RegisterDto) {
     return this.auth.register(dto);
   }
 
+  @UseGuards(ThrottlerGuard)
+  @SkipThrottle({ default: true })
+  @Throttle({ auth: {} })
   @Post("login")
   login(@Body() dto: LoginDto) {
     return this.auth.login(dto);

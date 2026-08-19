@@ -1,28 +1,121 @@
-version: "3.9"
+# Document Hub — local pilot/dev deployment.
+#
+# `docker compose up -d --build` from the repo root brings up a fully
+# working instance: Postgres, a one-shot `migrate` job (prisma migrate
+# deploy — never `migrate dev`), the API, and the web frontend (nginx
+# serving the production Vite build). No manual npm/Prisma/SQL steps.
+#
+# Default storage is the local filesystem (a persistent named volume) —
+# MinIO is NOT started unless you explicitly opt into it with
+# `docker compose --profile s3 up -d`; see the `minio` service below and
+# docs/deployment.md for why MinIO is optional dev/demo infra, never a
+# required product dependency.
+#
+# Copy .env.example to .env first and adjust JWT_SECRET at minimum.
+#
+# For an actual HTTPS deployment behind a reverse proxy, layer
+# docker-compose.production.yml on top of this file (see that file's
+# header comment) rather than using a different architecture.
 
 services:
   postgres:
     image: postgres:16-alpine
     environment:
-      POSTGRES_USER: document_hub
-      POSTGRES_PASSWORD: document_hub
-      POSTGRES_DB: document_hub
+      POSTGRES_USER: ${POSTGRES_USER:-document_hub}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-document_hub}
+      POSTGRES_DB: ${POSTGRES_DB:-document_hub}
     ports:
-      - "5432:5432"
+      - "${POSTGRES_PORT:-5432}:5432"
     volumes:
       - postgres-data:/var/lib/postgresql/data
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U document_hub"]
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-document_hub}"]
       interval: 5s
       timeout: 5s
       retries: 10
+    restart: unless-stopped
 
+  # One-shot: runs `prisma migrate deploy` and exits. The `api` service
+  # below waits for this to exit 0 before it starts, so a fresh install (or
+  # an upgrade) always applies pending migrations before the app that
+  # depends on their result ever accepts a request — never as an implicit
+  # side effect of API boot.
+  migrate:
+    build:
+      context: .
+      dockerfile: apps/api/Dockerfile
+      target: migrate
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      DATABASE_URL: ${DATABASE_URL:-postgresql://document_hub:document_hub@postgres:5432/document_hub}
+    restart: "no"
+
+  api:
+    build:
+      context: .
+      dockerfile: apps/api/Dockerfile
+    depends_on:
+      postgres:
+        condition: service_healthy
+      migrate:
+        condition: service_completed_successfully
+    environment:
+      NODE_ENV: ${NODE_ENV:-development}
+      DATABASE_URL: ${DATABASE_URL:-postgresql://document_hub:document_hub@postgres:5432/document_hub}
+      JWT_SECRET: ${JWT_SECRET:-dev-secret-change-me}
+      JWT_EXPIRES_IN: ${JWT_EXPIRES_IN:-8h}
+      PORT: "3000"
+      REGISTRATION_MODE: ${REGISTRATION_MODE:-INVITE_ONLY}
+      PUBLIC_BASE_URL: ${PUBLIC_BASE_URL:-http://localhost:8080}
+      CORS_ALLOWED_ORIGINS: ${CORS_ALLOWED_ORIGINS:-}
+      TRUST_PROXY: ${TRUST_PROXY:-0}
+      STORAGE_DRIVER: ${STORAGE_DRIVER:-local}
+      STORAGE_LOCAL_ROOT: /app/storage
+      STORAGE_S3_ENDPOINT: ${STORAGE_S3_ENDPOINT:-}
+      STORAGE_S3_BUCKET: ${STORAGE_S3_BUCKET:-}
+      STORAGE_S3_ACCESS_KEY: ${STORAGE_S3_ACCESS_KEY:-}
+      STORAGE_S3_SECRET_KEY: ${STORAGE_S3_SECRET_KEY:-}
+      STORAGE_S3_REGION: ${STORAGE_S3_REGION:-us-east-1}
+      STORAGE_S3_FORCE_PATH_STYLE: ${STORAGE_S3_FORCE_PATH_STYLE:-true}
+    ports:
+      - "${API_PORT:-3000}:3000"
+    volumes:
+      # Survives `docker compose restart` and `down`/`up` — only
+      # `down -v` removes it. Irrelevant when STORAGE_DRIVER=s3, but always
+      # mounted so switching drivers via .env never silently loses local
+      # files that were already there.
+      - api-storage:/app/storage
+    restart: unless-stopped
+    # HEALTHCHECK is inherited from apps/api/Dockerfile (GET /health/live).
+
+  web:
+    build:
+      context: .
+      dockerfile: apps/web/Dockerfile
+      args:
+        VITE_API_BASE_URL: ${VITE_API_BASE_URL:-http://localhost:3000}
+    depends_on:
+      api:
+        condition: service_healthy
+    ports:
+      - "${WEB_PORT:-8080}:80"
+    restart: unless-stopped
+    # HEALTHCHECK is inherited from apps/web/Dockerfile (GET /).
+
+  # Optional, dev/demo-only S3-compatible object storage — never a required
+  # product dependency (MinIO is AGPL-licensed; see docs/deployment.md).
+  # Only starts with `docker compose --profile s3 up -d`. A real deployment
+  # points STORAGE_DRIVER=s3 at an actual provider (AWS S3, Hetzner Object
+  # Storage, ...) instead of this.
   minio:
     image: minio/minio:latest
+    profiles: ["s3"]
     command: server /data --console-address ":9001"
     environment:
-      MINIO_ROOT_USER: document_hub
-      MINIO_ROOT_PASSWORD: document_hub_secret
+      MINIO_ROOT_USER: ${STORAGE_S3_ACCESS_KEY:-document_hub}
+      MINIO_ROOT_PASSWORD: ${STORAGE_S3_SECRET_KEY:-document_hub_secret}
     ports:
       - "9000:9000"
       - "9001:9001"
@@ -33,35 +126,9 @@ services:
       interval: 5s
       timeout: 5s
       retries: 10
-
-  api:
-    build:
-      context: .
-      dockerfile: apps/api/Dockerfile
-    depends_on:
-      postgres:
-        condition: service_healthy
-      minio:
-        condition: service_healthy
-    environment:
-      DATABASE_URL: postgresql://document_hub:document_hub@postgres:5432/document_hub
-      JWT_SECRET: change-me-in-production
-      STORAGE_DRIVER: s3
-      STORAGE_S3_ENDPOINT: http://minio:9000
-      STORAGE_S3_BUCKET: document-hub
-      STORAGE_S3_ACCESS_KEY: document_hub
-      STORAGE_S3_SECRET_KEY: document_hub_secret
-      STORAGE_S3_REGION: us-east-1
-      STORAGE_S3_FORCE_PATH_STYLE: "true"
-      PORT: "3000"
-    ports:
-      - "3000:3000"
-    healthcheck:
-      test: ["CMD", "node", "-e", "require('http').get('http://localhost:3000/health', r => process.exit(r.statusCode === 200 ? 0 : 1)).on('error', () => process.exit(1))"]
-      interval: 10s
-      timeout: 5s
-      retries: 10
+    restart: unless-stopped
 
 volumes:
   postgres-data:
+  api-storage:
   minio-data:

@@ -3,6 +3,7 @@ import { Prisma } from "@prisma/client";
 import { PrismaService } from "../prisma/prisma.service";
 import { normalizePagination, toPaginated } from "../common/pagination";
 import { ListPlatformAuditQueryDto } from "./dto/list-platform-audit.dto";
+import { getRequestContext } from "../common/request-context-store";
 
 export interface RecordPlatformAuditEventInput {
   actorId?: string | null;
@@ -27,6 +28,9 @@ export class PlatformAuditService {
   constructor(private readonly prisma: PrismaService) {}
 
   async record(input: RecordPlatformAuditEventInput) {
+    // See AuditService.record()'s equivalent comment — same ambient
+    // request-context fallback, same reasoning.
+    const ctx = getRequestContext();
     await this.prisma.platformAuditEvent.create({
       data: {
         actorId: input.actorId ?? null,
@@ -35,9 +39,9 @@ export class PlatformAuditService {
         targetId: input.targetId,
         before: input.before === undefined ? Prisma.JsonNull : (input.before as Prisma.InputJsonValue),
         after: input.after === undefined ? Prisma.JsonNull : (input.after as Prisma.InputJsonValue),
-        requestId: input.requestId ?? null,
-        ipAddress: input.ipAddress ?? null,
-        userAgent: input.userAgent ?? null,
+        requestId: input.requestId ?? ctx?.requestId ?? null,
+        ipAddress: input.ipAddress ?? ctx?.ipAddress ?? null,
+        userAgent: input.userAgent ?? ctx?.userAgent ?? null,
       },
     });
   }

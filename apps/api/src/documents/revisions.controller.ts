@@ -19,7 +19,7 @@ import { Roles } from "../common/decorators/roles.decorator";
 import { Tenant } from "../common/decorators/tenant.decorator";
 import { CurrentUser } from "../common/decorators/current-user.decorator";
 import { TenantContext, AuthenticatedUser } from "../common/request-context";
-import { RevisionsService } from "./revisions.service";
+import { MAX_FILE_SIZE_BYTES, RevisionsService } from "./revisions.service";
 import { CreateRevisionMetaDto } from "./dto/document-dtos";
 
 @UseGuards(JwtAuthGuard, TenantGuard, RolesGuard)
@@ -35,7 +35,12 @@ export class RevisionsController {
 
   @Roles("EDITOR")
   @Post()
-  @UseInterceptors(FileInterceptor("file"))
+  // limits.fileSize rejects an oversized upload as Multer streams it in
+  // (spec §39 upload-security review), rather than buffering the entire
+  // file into memory first and only then hitting RevisionsService's own
+  // MAX_FILE_SIZE_BYTES check — the same limit, enforced earlier and
+  // cheaper.
+  @UseInterceptors(FileInterceptor("file", { limits: { fileSize: MAX_FILE_SIZE_BYTES } }))
   upload(
     @Tenant() tenant: TenantContext,
     @CurrentUser() user: AuthenticatedUser,
