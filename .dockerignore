@@ -1,0 +1,23 @@
+**/node_modules
+**/dist
+**/coverage
+.git
+.github
+
+# Local/dev-only environment files — never baked into an image.
+.env
+.env.*
+!.env.example
+!.env.*.example
+
+# Local object storage, backups, test artifacts
+apps/api/storage/
+apps/api/storage-test/
+backups/
+
+# Editor/OS cruft
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
+*.log

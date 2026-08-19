@@ -1,0 +1,37 @@
+# Document Hub — production overlay.
+#
+# Same architecture as docker-compose.yml (Postgres, one-shot migrate, api,
+# web — no MinIO by default), not a different deployment topology. Layer
+# this on top:
+#
+#   docker compose -f docker-compose.yml -f docker-compose.production.yml up -d --build
+#
+# What this overlay changes:
+#   - NODE_ENV=production on the api service, which turns on fail-fast
+#     startup validation (validate-production-config.ts): a strong
+#     JWT_SECRET, an HTTPS + non-localhost PUBLIC_BASE_URL, complete
+#     storage config. Set those correctly in .env or the container refuses
+#     to start — see docs/security.md and docs/deployment.md.
+#   - Binds api/web to 127.0.0.1 only. This process does not terminate
+#     TLS itself (see docs/security.md — "never a custom Node TLS
+#     implementation"); put a real reverse proxy (nginx, Caddy, a managed
+#     load balancer, ...) in front of this host, terminating HTTPS there
+#     and forwarding to 127.0.0.1:<API_PORT>/<WEB_PORT>. Set TRUST_PROXY=1
+#     in .env once that proxy is in place, so the app knows to trust its
+#     X-Forwarded-* headers.
+#
+# This file intentionally does NOT include a reverse proxy service itself —
+# real deployments already have one (or a managed load balancer), and
+# baking in a specific choice here would be exactly the kind of
+# unnecessary infra the hardening spec asks to avoid.
+
+services:
+  api:
+    environment:
+      NODE_ENV: production
+    ports:
+      - "127.0.0.1:${API_PORT:-3000}:3000"
+
+  web:
+    ports:
+      - "127.0.0.1:${WEB_PORT:-8080}:80"
