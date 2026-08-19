@@ -67,6 +67,37 @@ it, but no code path currently produces that transition.
 The only real lifecycle-ending transition implemented is the explicit,
 human-triggered `revoke`.
 
+## Publish preview (`GET /api/publications/preview/:revisionId`, Editor+)
+
+Before a revision is approved and published, the UI needs to answer "what
+would this actually do" — affected units, a plain-language rendering of the
+current rule set, and whether it would conflict — without an editor having
+to guess or the frontend having to reimplement any matching logic. This
+endpoint is the backend-authoritative source for that: it reuses the exact
+same `specificity()`/`rulesCouldOverlap()` functions used at real publish
+time (the conflict check was extracted into
+`src/publications/conflict-detection.ts` specifically so `PublishService`
+and `PublishPreviewService` cannot drift apart), plus a new scope-only unit
+count (`src/applicability/affected-units.ts`).
+
+Two things make this a *preview*, not a second implementation of publish:
+
+- It is read-only and takes no lock — unlike the real publish, it is not
+  atomic with anything and can go stale the instant another publish
+  happens. That's fine: `POST /api/publications` re-runs `findConflicts`
+  for real, under the advisory lock, and is the actual authority. The
+  preview exists to make failure predictable in the UI, not to replace the
+  real check.
+- "Affected units" is a deliberately simpler question than "what would
+  resolve." It counts organization units whose identity (product/variant/
+  batch/unit/serial) falls inside the rule's *scope*, ignoring
+  `validFrom`/`validUntil` and specificity ties against unrelated
+  documents — it does not attempt to simulate the full resolver. Answering
+  "how many units does this rule's scope reach" is what an editor actually
+  needs while authoring a rule; simulating full resolution against every
+  other active publication in the org for a preview is unnecessary
+  complexity this MVP does not take on.
+
 ## Immutability
 
 Once a `DocumentRevision` reaches `APPROVED` or beyond, or has ever
