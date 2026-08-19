@@ -473,7 +473,86 @@ going forward: never add a hex fallback to a `var(--token, #hex)` — if the
 token doesn't already exist in `tokens.css`, add it there, don't
 work around it inline.**
 
-## Application code layout
+### Phase 4 (Publication History, Audit UI)
+
+Audited the two remaining data-dense table+filter+detail screens
+(`features/publications/PublicationHistoryPage.tsx` +
+`PublicationDetailDrawer.tsx`, `features/audit/AuditLogPage.tsx` +
+`AuditDetailDrawer.tsx`) against the reference mockup
+(`images/Audit-Log im CE Document Hub.png`) and against each other.
+Findings and fixes, all presentation-only — no change to either screen's
+`usePaginated`/`listPublicationHistory`/`listAuditEvents` calls or query
+building, and the Publication History "frozen snapshot" invariant (see
+above) is untouched:
+
+- **FilterBar/Table were already consistent** between the two screens (same
+  `FilterBar` layout, same raw `<input type="date">` treatment for the
+  Von/Bis range — identical inline style block in both files, a pre-existing
+  duplication left alone rather than extracted, since neither screen
+  diverged from the other) and both already relied on the shared `Table`'s
+  `overflow-x: auto` wrapper for independent horizontal scroll — confirmed
+  still holding at 1440/1280/1024px for Publication History's wider,
+  six-column table.
+- **`PublicationDetailDrawer` was still on the pre-Phase-2 pattern**: a bare
+  `<Spinner centered />` for loading and a bare `<p role="alert">{error}</p>`
+  for its `getPublication` fetch error, both missed by Phase 2's ErrorState
+  sweep because this file wasn't in scope yet. Converted to
+  `LoadingState`/`ErrorState`, matching every other detail-fetch in the app.
+  `AuditDetailDrawer` never needed this — it receives its `event` as a prop
+  from the already-loaded list, no fetch of its own.
+- **Both detail drawers hand-rolled their own `<dl className={styles.dl}>`
+  grid** instead of using the shared `DescriptionList`/`DescriptionItem`
+  (Phase 2/3 convention, see above) — near-identical CSS in both files'
+  `.module.css` (a second, third copy of the same grid-two-column pattern
+  Phase 2 already unified for the Übersicht tabs). Converted every
+  label/value block in both drawers (Publication's Dokument/Veröffentlichung
+  sections, Audit's Kerndaten/Technischer Kontext sections) to
+  `DescriptionList`; removed the now-dead `.dl` CSS from both module files.
+- **Two different "nothing here" conventions for a null field**:
+  Publication's un-revoked `Widerrufen am`/`von` showed plain, unstyled
+  `"— (nicht widerrufen)"` text; Audit's null `requestId`/`ipAddress`/
+  `userAgent` showed plain, unstyled `"nicht erfasst"` text — same *kind* of
+  fact (this field is genuinely inapplicable/not captured, not a loading
+  gap), two different-looking renderings. Unified the visual treatment only
+  (each screen's own German wording stays, since the two cases are
+  semantically different — "not revoked" vs. "not recorded" — only the
+  *styling* needed to match): both `.module.css` files now define an
+  identical `.notAvailable { color: var(--color-text-muted); font-style:
+  italic; }`, applied via a small helper in each drawer file
+  (`notApplicable()` in `PublicationDetailDrawer.tsx`, the updated
+  `notRecorded()` in `AuditDetailDrawer.tsx`). Any future "no value" field in
+  either screen should reuse this same visual pattern rather than inventing
+  a third one.
+- **`--font-mono` didn't exist as a token**: both drawers' `.mono` class
+  either hardcoded `font-family: monospace` (Audit) or referenced a
+  non-existent `var(--font-mono, monospace)` fallback (Publication) — the
+  latter is exactly the anti-pattern Phase 3's tokens section warns against
+  ("never add a hex/value fallback to a `var(--token)` — if the token
+  doesn't exist, add it"). Added a real `--font-mono` token to
+  `tokens.css` and pointed both `.mono` classes at it with no fallback.
+- **Empty-state copy made filter-aware**: both list pages' `Table`
+  `emptyMessage` were plain strings ("Keine Veröffentlichungen gefunden."/
+  "Keine Audit-Ereignisse gefunden."). Converted to `EmptyState` with two
+  variants each, chosen by whether any filter is currently active
+  (`filtersActive` — a simple `Boolean(...)` OR of the screen's filter
+  state, not a new fetch or a new data source): "Keine … gefunden" +
+  "Passen Sie die Filter an." when a filter is narrowing an otherwise
+  non-empty result set, vs. a plain "Noch keine …" wording when the
+  organization genuinely has nothing yet.
+- **Breadcrumb targets verified, not rebuilt**: Publication History's
+  document links (`/app/documents/:id`) and Audit's resource links
+  (`Product`/`Document`/`DocumentRevision`/`Publication`, via
+  `object-routes.ts`) land on pages that already render their own
+  breadcrumbs from Phase 2 — nothing needed to change on either target page.
+  Neither Publication History nor Audit gets breadcrumbs itself, matching
+  the existing "top-level nav item" rule.
+- **Button hierarchy**: both screens are read-only by design (no
+  edit/delete affordance exists in either the UI or the backend for these
+  two resources) — confirmed no stray `primary`-styled button implying an
+  action, and pagination is the design system's own `Pagination` component
+  on both, not a custom control.
+
+### Application code layout
 
 ```
 src/
