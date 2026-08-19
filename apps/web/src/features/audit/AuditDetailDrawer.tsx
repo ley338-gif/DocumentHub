@@ -1,4 +1,4 @@
-import { Drawer } from "../../design-system";
+import { DescriptionItem, DescriptionList, Drawer } from "../../design-system";
 import type { AuditEventDto } from "../../lib/api-types";
 import { auditEventLabel } from "./action-labels";
 import styles from "./AuditDetailDrawer.module.css";
@@ -8,8 +8,13 @@ export interface AuditDetailDrawerProps {
   onClose: () => void;
 }
 
-function notRecorded(value: string | null | undefined): string {
-  return value ? value : "nicht erfasst";
+/** Shared "not applicable" rendering for a null field — same muted/italic
+ * treatment as the Publication detail drawer's un-revoked "— (nicht
+ * widerrufen)" fields, so the two read-only history drawers don't invent
+ * two different conventions for "there's genuinely nothing here". */
+function notRecorded(value: string | null | undefined) {
+  if (value) return value;
+  return <span className={styles.notAvailable}>nicht erfasst</span>;
 }
 
 function sha256Of(payload: unknown): string | undefined {
@@ -38,20 +43,28 @@ export function AuditDetailDrawer({ event, onClose }: AuditDetailDrawerProps) {
 
         <section>
           <h3>Kerndaten</h3>
-          <dl className={styles.dl}>
-            <dt>Event ID</dt>
-            <dd className={styles.mono}>{event.id}</dd>
-            <dt>Zeitpunkt</dt>
-            <dd>{new Date(event.timestamp).toLocaleString("de-DE")}</dd>
-            <dt>Action</dt>
-            <dd className={styles.mono}>{event.action}</dd>
-            <dt>Ressourcentyp</dt>
-            <dd>{event.objectType}</dd>
-            <dt>Object ID</dt>
-            <dd className={styles.mono}>{event.objectId}</dd>
-            <dt>Akteur</dt>
-            <dd>{event.actorName ?? event.actorId ?? "System"}</dd>
-          </dl>
+          <DescriptionList>
+            <DescriptionItem
+              label="Event ID"
+              value={
+                <span className={styles.mono} title={event.id}>
+                  {event.id}
+                </span>
+              }
+            />
+            <DescriptionItem label="Zeitpunkt" value={new Date(event.timestamp).toLocaleString("de-DE")} />
+            <DescriptionItem label="Action" value={<span className={styles.mono}>{event.action}</span>} />
+            <DescriptionItem label="Ressourcentyp" value={event.objectType} />
+            <DescriptionItem
+              label="Object ID"
+              value={
+                <span className={styles.mono} title={event.objectId}>
+                  {event.objectId}
+                </span>
+              }
+            />
+            <DescriptionItem label="Akteur" value={event.actorName ?? event.actorId ?? "System"} />
+          </DescriptionList>
         </section>
 
         {sha256 && (
@@ -73,14 +86,11 @@ export function AuditDetailDrawer({ event, onClose }: AuditDetailDrawerProps) {
 
         <section>
           <h3>Technischer Kontext</h3>
-          <dl className={styles.dl}>
-            <dt>Request ID</dt>
-            <dd>{notRecorded(event.requestId)}</dd>
-            <dt>IP-Adresse</dt>
-            <dd>{notRecorded(event.ipAddress)}</dd>
-            <dt>User Agent</dt>
-            <dd>{notRecorded(event.userAgent)}</dd>
-          </dl>
+          <DescriptionList>
+            <DescriptionItem label="Request ID" value={notRecorded(event.requestId)} />
+            <DescriptionItem label="IP-Adresse" value={notRecorded(event.ipAddress)} />
+            <DescriptionItem label="User Agent" value={notRecorded(event.userAgent)} />
+          </DescriptionList>
         </section>
       </div>
     </Drawer>
