@@ -14,29 +14,41 @@ See `docs/architecture.md`, `docs/domain-model.md`,
 `docs/applicability-resolution.md`, and `docs/publication-lifecycle.md` for
 the design in depth.
 
+## Deploying Document Hub
+
+**Want to run Document Hub, not develop it?** Start at
+[docs/deployment.md](docs/deployment.md) — `docker compose up -d --build`
+from a `.env` you copy from `.env.example`, no manual npm/Prisma/SQL steps.
+Then:
+
+- [docs/platform-admin.md](docs/platform-admin.md) — bootstrap the first
+  platform admin, create your first tenant (quickstart, both roles)
+- [docs/operations.md](docs/operations.md) — what to monitor, troubleshooting
+- [docs/backup-restore.md](docs/backup-restore.md) — back up **and actually
+  restore** before you have real data you can't afford to lose
+- [docs/security.md](docs/security.md) — everything hardening-related, in
+  one place
+- [docs/upgrades.md](docs/upgrades.md) — upgrade and rollback procedure
+
 ## Repository layout
 
 ```
 apps/
   api/    NestJS + Prisma + PostgreSQL backend
   web/    React + Vite frontend (see apps/web/README.md)
-docs/     architecture and domain design notes
+docs/     architecture, domain design, and deployment/operations notes
+scripts/  backup.sh/.ps1, restore.sh/.ps1, smoke-test.js — see docs/backup-restore.md
 ```
-
-This run adds the first slice of `apps/web`: the shared design system plus
-the public QR-scan pages (`/p/:stableId`, `/u/:stableId`). The authenticated
-admin UI (products, documents, applicability editor, publish wizard, CSV
-import, audit UI, dashboard) is still to come — `apps/web` currently ships
-only a login screen and an empty dashboard placeholder to prove the
-authenticated shell works end-to-end.
 
 ## Local development
 
 Prerequisites: Docker, Node.js 20+.
 
 ```bash
-# 1. Start Postgres (+ MinIO for S3-compatible object storage)
-docker compose up -d postgres minio
+# 1. Start Postgres (local filesystem storage needs no extra service; add
+#    `--profile s3 minio` too if you want to develop against S3-compatible
+#    storage instead — see docs/deployment.md)
+docker compose up -d postgres
 
 # 2. Install dependencies (installs both apps/api and apps/web)
 npm install

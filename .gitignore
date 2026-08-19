@@ -20,3 +20,8 @@ apps/api/storage-test/
 Thumbs.db
 .vscode/
 .idea/
+
+# Backup archives (contain real data dumps — never committed) and
+# throwaway smoke-test state files (see docs/backup-restore.md)
+backups/
+scripts/.smoke-state*.json
