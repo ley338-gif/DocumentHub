@@ -5,6 +5,7 @@ import { AppliedRuleSnapshot } from "../applicability/applicability.types";
 import { toAppliedRuleSnapshot } from "../applicability/to-applied-rule-snapshot";
 import { specificity } from "../applicability/specificity";
 import { countAffectedUnits } from "../applicability/affected-units";
+import { resolveScopeNames } from "../applicability/resolve-scope-names";
 import { findConflicts } from "./conflict-detection";
 
 // Structured scope, alongside `description` (a presentation convenience,
@@ -113,7 +114,7 @@ export class PublishPreviewService {
       reason: c.existingPublicationRevisionId === revision.id ? "ALREADY_PUBLISHED" : "CONFLICT",
     }));
 
-    const names = await this.resolveScopeNames(organizationId, ruleSnapshots);
+    const names = await resolveScopeNames(this.prisma, organizationId, ruleSnapshots);
     const rules: RulePreview[] = ruleSnapshots.map((rule) => ({
       ruleId: rule.id,
       specificity: specificity(rule),
@@ -133,59 +134,6 @@ export class PublishPreviewService {
       sampleSerials: affected.sampleSerials,
       conflicts,
     };
-  }
-
-  // Batch-resolves the human-readable names behind every scope id referenced
-  // by any rule, so `describeRule` never has to show a raw uuid to a user.
-  private async resolveScopeNames(
-    organizationId: string,
-    rules: AppliedRuleSnapshot[],
-  ): Promise<Map<string, string>> {
-    const ids = {
-      productFamilyId: new Set<string>(),
-      productId: new Set<string>(),
-      variantId: new Set<string>(),
-      batchId: new Set<string>(),
-      unitId: new Set<string>(),
-    };
-    for (const rule of rules) {
-      if (rule.productFamilyId) ids.productFamilyId.add(rule.productFamilyId);
-      if (rule.productId) ids.productId.add(rule.productId);
-      if (rule.variantId) ids.variantId.add(rule.variantId);
-      if (rule.batchId) ids.batchId.add(rule.batchId);
-      if (rule.unitId) ids.unitId.add(rule.unitId);
-    }
-
-    const [families, products, variants, batches, units] = await Promise.all([
-      this.prisma.productFamily.findMany({
-        where: { organizationId, id: { in: [...ids.productFamilyId] } },
-        select: { id: true, name: true },
-      }),
-      this.prisma.product.findMany({
-        where: { organizationId, id: { in: [...ids.productId] } },
-        select: { id: true, name: true },
-      }),
-      this.prisma.productVariant.findMany({
-        where: { organizationId, id: { in: [...ids.variantId] } },
-        select: { id: true, name: true },
-      }),
-      this.prisma.batch.findMany({
-        where: { organizationId, id: { in: [...ids.batchId] } },
-        select: { id: true, name: true },
-      }),
-      this.prisma.unit.findMany({
-        where: { organizationId, id: { in: [...ids.unitId] } },
-        select: { id: true, serialNumber: true },
-      }),
-    ]);
-
-    const names = new Map<string, string>();
-    for (const f of families) names.set(f.id, f.name);
-    for (const p of products) names.set(p.id, p.name);
-    for (const v of variants) names.set(v.id, v.name);
-    for (const b of batches) names.set(b.id, b.name);
-    for (const u of units) names.set(u.id, u.serialNumber);
-    return names;
   }
 }
 

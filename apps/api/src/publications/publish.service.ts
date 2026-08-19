@@ -5,6 +5,7 @@ import { AuditService } from "../audit/audit.service";
 import { AppError } from "../common/errors/app-error";
 import { AppliedRuleSnapshot } from "../applicability/applicability.types";
 import { toAppliedRuleSnapshot } from "../applicability/to-applied-rule-snapshot";
+import { resolveScopeNames, withResolvedNames } from "../applicability/resolve-scope-names";
 import { findConflicts } from "./conflict-detection";
 
 const HIERARCHY: Record<MembershipRole, number> = { VIEWER: 0, EDITOR: 1, PUBLISHER: 2, ADMINISTRATOR: 3 };
@@ -53,6 +54,23 @@ export class PublishService {
           );
         }
 
+        // Bake resolved names into the rule snapshot NOW, inside the same
+        // transaction — this is what a historical Publication History view
+        // reads later, so a subsequent rename of the product/variant/batch/
+        // unit can never change what it displays. Never resolve names from
+        // a live table when rendering history; only ever read what's frozen
+        // here. See docs/publication-lifecycle.md.
+        const names = await resolveScopeNames(tx, organizationId, newRuleSnapshots);
+        const frozenRuleSnapshots = newRuleSnapshots.map((rule) => withResolvedNames(rule, names));
+
+        const scopedProductIds = [
+          ...new Set(
+            frozenRuleSnapshots
+              .filter((rule) => !rule.explicitExclusion && rule.productId)
+              .map((rule) => rule.productId as string),
+          ),
+        ];
+
         const publication = await tx.publication.create({
           data: {
             organizationId,
@@ -78,7 +96,8 @@ export class PublishService {
             fileSize: revision.fileSize,
             sha256: revision.sha256,
             storageKey: revision.storageKey,
-            applicabilityRules: newRuleSnapshots as unknown as Prisma.InputJsonValue,
+            applicabilityRules: frozenRuleSnapshots as unknown as Prisma.InputJsonValue,
+            scopedProductIds,
             publishedAt: publication.publishedAt,
             publishedById: actorId,
           },

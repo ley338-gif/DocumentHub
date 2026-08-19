@@ -24,6 +24,21 @@ export interface AppliedRuleSnapshot {
   validUntil: string | null; // ISO date
 
   explicitExclusion: boolean;
+
+  // Resolved display names, as they were at the moment this snapshot was
+  // frozen (publish time) — NOT looked up live. Optional because a live
+  // ApplicabilityRule (still being edited, not yet published) has no
+  // reason to carry these; toAppliedRuleSnapshot() never sets them.
+  // PublishService populates them (via resolveScopeNames()) only on the
+  // copy that actually gets written into PublicationSnapshot.applicabilityRules,
+  // which is what makes a later rename of the product/variant/batch/unit
+  // powerless to change what a historical Publication History view shows —
+  // see docs/publication-lifecycle.md's "Frozen scope names" section.
+  productFamilyName?: string | null;
+  productName?: string | null;
+  variantName?: string | null;
+  batchName?: string | null;
+  unitSerialNumber?: string | null;
 }
 
 // Minimal identity context for a unit, resolved once (live Product/Unit
