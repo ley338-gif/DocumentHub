@@ -118,8 +118,8 @@ async function main() {
     body: form,
   }).then((r) => r.json());
   check(
-    `CSV preview accepted 5,000 rows (totalRows=${previewRes.totalRows}, validRows=${previewRes.validRows})`,
-    previewRes.totalRows === 5000 && previewRes.validRows === 5000,
+    `CSV preview accepted 5,000 rows (totalRows=${previewRes.totalRows}, validRows=${previewRes.validRows?.length}, invalidRows=${previewRes.invalidRows?.length})`,
+    previewRes.totalRows === 5000 && previewRes.validRows?.length === 5000 && previewRes.invalidRows?.length === 0,
   );
   const importId = previewRes.importId;
   const commitRes = await tReq(`/api/imports/units/${importId}/commit`, { method: "POST" });
