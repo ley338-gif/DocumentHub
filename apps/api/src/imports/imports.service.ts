@@ -38,6 +38,7 @@ export class ImportsService {
     organizationId: string,
     actorId: string,
     file: { buffer: Buffer; size: number } | undefined,
+    columnMappingOverride?: Partial<Record<string, number>>,
   ): Promise<ImportPreviewResponseDto> {
     if (!file || !file.buffer || file.buffer.length === 0) {
       throw new AppError("FILE_VALIDATION_FAILED", "No CSV file uploaded");
@@ -54,7 +55,9 @@ export class ImportsService {
       throw new AppError("FILE_VALIDATION_FAILED", "CSV file has no header row");
     }
 
-    const headers = mapHeaders(allRows[0]);
+    // Auto-detected unless the caller (the mapping-review UI step) supplies
+    // an explicit override — see mapHeaders' doc comment.
+    const headers = mapHeaders(allRows[0], columnMappingOverride);
     if (headers.columnByField.serialNumber === undefined) {
       throw new AppError("FILE_VALIDATION_FAILED", "CSV must include a serialNumber (or serial_number) column");
     }
@@ -289,6 +292,8 @@ export class ImportsService {
       validRows,
       invalidRows,
       unknownColumns: headers.unknownColumns,
+      headers: allRows[0],
+      columnMapping: headers.columnByField,
     };
   }
 
