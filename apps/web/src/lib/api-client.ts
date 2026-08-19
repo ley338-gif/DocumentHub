@@ -48,7 +48,15 @@ async function parseErrorBody(res: Response): Promise<{ code: ApiErrorCode; mess
 export async function apiRequest<T>(path: string, options: RequestOptions = {}): Promise<T> {
   const { method = "GET", body, query, anonymous = false, signal } = options;
 
-  const headers: Record<string, string> = {};
+  // Explicit Accept lets an operator's reverse proxy distinguish this SPA's
+  // own data fetch from a real browser navigation to the SAME path — the
+  // public /p and /u routes are deliberately unprefixed (see
+  // GLOBAL_PREFIX_EXCLUDES) so they double as the QR-code-facing URL, which
+  // means a single-origin deployment (API and Web behind one domain) can't
+  // tell "load the page" from "fetch this page's data" by path alone. A
+  // browser's own navigation always sends `Accept: text/html...`; this
+  // never does. See docs/deployment.md's single-domain section.
+  const headers: Record<string, string> = { Accept: "application/json" };
   if (body !== undefined) headers["Content-Type"] = "application/json";
 
   if (!anonymous) {
