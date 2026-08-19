@@ -120,12 +120,14 @@ export function RuleBuilderView({
       <ul style={{ listStyle: "none", margin: 0, padding: 0, display: "flex", flexDirection: "column", gap: "0.75rem" }}>
         {rules.map((rule) => {
           const rp = previewByRuleId.get(rule.id);
-          const hasConflict = preview?.conflicts.some((c) => c.newRuleId === rule.id) ?? false;
+          const ruleConflicts = preview?.conflicts.filter((c) => c.newRuleId === rule.id) ?? [];
+          const hasRealConflict = ruleConflicts.some((c) => c.reason !== "ALREADY_PUBLISHED");
+          const isAlreadyPublished = ruleConflicts.length > 0 && !hasRealConflict;
           return (
             <li
               key={rule.id}
               style={{
-                border: `1px solid ${hasConflict ? "var(--color-danger, #d92d20)" : "var(--color-border, #ddd)"}`,
+                border: `1px solid ${hasRealConflict ? "var(--color-danger, #d92d20)" : "var(--color-border, #ddd)"}`,
                 borderRadius: 8,
                 padding: "0.75rem 1rem",
                 display: "flex",
@@ -139,7 +141,8 @@ export function RuleBuilderView({
                 <div style={{ display: "flex", gap: "0.5rem", flexWrap: "wrap" }}>
                   {rp && <Badge tone="info">Spezifität {rp.specificity}</Badge>}
                   {rp && <Badge tone="neutral">{rp.affectedUnitsCount} Einheiten betroffen</Badge>}
-                  {hasConflict && <Badge tone="danger">Konflikt</Badge>}
+                  {hasRealConflict && <Badge tone="danger">Konflikt</Badge>}
+                  {isAlreadyPublished && <Badge tone="neutral">Bereits veröffentlicht</Badge>}
                   {!rp && canPreview && <Badge tone="neutral">Vorschau ausstehend</Badge>}
                 </div>
               </div>

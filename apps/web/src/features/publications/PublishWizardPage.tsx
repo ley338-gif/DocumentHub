@@ -143,6 +143,8 @@ export function PublishWizardPage() {
 
   const step = STEPS[stepIndex].key;
   const hasConflicts = (preview?.conflicts.length ?? 0) > 0;
+  const hasRealConflicts = preview?.conflicts.some((c) => c.reason !== "ALREADY_PUBLISHED") ?? false;
+  const isOnlyAlreadyPublished = hasConflicts && !hasRealConflicts;
 
   return (
     <div>
@@ -259,10 +261,16 @@ export function PublishWizardPage() {
                 Dokument <strong>{doc.name}</strong>, Revision <strong>{revision.revision}</strong> (
                 {languageLabel(revision.language)}) wird jetzt veröffentlicht.
               </p>
-              {hasConflicts && (
+              {hasRealConflicts && (
                 <p role="alert" style={{ color: "var(--color-danger, #d92d20)", fontWeight: 600 }}>
-                  Veröffentlichung blockiert: Es bestehen {preview?.conflicts.length} Konflikt(e) laut letzter
-                  Vorschau (Schritt 4). Beheben Sie die Konflikte, bevor Sie erneut versuchen.
+                  Veröffentlichung blockiert: Es bestehen Konflikte laut letzter Vorschau (Schritt 4). Beheben Sie die
+                  Konflikte, bevor Sie erneut versuchen.
+                </p>
+              )}
+              {isOnlyAlreadyPublished && (
+                <p role="status" style={{ fontWeight: 600 }}>
+                  Diese Revision ist für diesen Gültigkeitsbereich bereits veröffentlicht — ein erneutes
+                  Veröffentlichen ist nicht nötig.
                 </p>
               )}
               {publishError && <p role="alert">{publishError}</p>}

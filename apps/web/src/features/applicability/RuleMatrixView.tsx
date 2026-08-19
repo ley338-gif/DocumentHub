@@ -16,6 +16,7 @@ interface MatrixRow {
   specificity: number | null;
   affectedUnitsCount: number | null;
   hasConflict: boolean;
+  isAlreadyPublished: boolean;
 }
 
 type SortKey = "description" | "specificity" | "affectedUnitsCount";
@@ -36,12 +37,15 @@ export function RuleMatrixView({ canPreview, rules, preview, previewLoading }: R
 
   const rows: MatrixRow[] = rules.map((rule) => {
     const rp = previewByRuleId.get(rule.id);
+    const ruleConflicts = preview?.conflicts.filter((c) => c.newRuleId === rule.id) ?? [];
+    const hasConflict = ruleConflicts.some((c) => c.reason !== "ALREADY_PUBLISHED");
     return {
       ruleId: rule.id,
       description: rp?.description ?? "(Beschreibung folgt nach Vorschau-Aktualisierung)",
       specificity: rp?.specificity ?? null,
       affectedUnitsCount: rp?.affectedUnitsCount ?? null,
-      hasConflict: preview?.conflicts.some((c) => c.newRuleId === rule.id) ?? false,
+      hasConflict,
+      isAlreadyPublished: ruleConflicts.length > 0 && !hasConflict,
     };
   });
 
@@ -89,7 +93,14 @@ export function RuleMatrixView({ canPreview, rules, preview, previewLoading }: R
     {
       key: "conflict",
       header: "Konflikt",
-      render: (r) => (r.hasConflict ? <Badge tone="danger">Ja</Badge> : <Badge tone="success">Nein</Badge>),
+      render: (r) =>
+        r.hasConflict ? (
+          <Badge tone="danger">Ja</Badge>
+        ) : r.isAlreadyPublished ? (
+          <Badge tone="neutral">Bereits veröffentlicht</Badge>
+        ) : (
+          <Badge tone="success">Nein</Badge>
+        ),
     },
   ];
 

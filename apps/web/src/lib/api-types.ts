@@ -250,11 +250,14 @@ export interface RulePreviewDto {
   affectedUnitsCount: number;
 }
 
+export type ConflictReason = "CONFLICT" | "ALREADY_PUBLISHED";
+
 export interface PublishConflictDto {
   existingPublicationId: string;
   existingPublicationStableId: string;
   newRuleId: string;
   conflictingRuleId: string;
+  reason: ConflictReason;
 }
 
 export interface PublishPreviewDto {
