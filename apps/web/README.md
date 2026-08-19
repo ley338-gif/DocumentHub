@@ -4,9 +4,9 @@ React + TypeScript + Vite frontend for Document Hub. Built so far: the
 shared design system, the authenticated app shell with a bare login flow,
 the public QR-scan pages, the authenticated Products and Documents admin
 screens (with the document revision lifecycle), the Applicability Rule
-Editor (builder + matrix, with a live backend preview), and the Publish
-Wizard. CSV import UI, audit UI, and real dashboard KPIs are deliberately
-not built yet — see "What's built" below.
+Editor (builder + matrix, with a live backend preview), the Publish
+Wizard, and the CSV unit import wizard. Audit UI and real dashboard KPIs
+are deliberately not built yet — see "What's built" below.
 
 ## Design invariant: this UI is a pure consumer of the backend's applicability logic
 
@@ -82,8 +82,9 @@ npm run preview      # serve the production build locally
 | `/login` | none | Login screen. |
 | `/app` | required | Authenticated app shell (sidebar + top bar). Redirects to `/login` if there's no valid session. |
 | `/app` (index) | required | Dashboard — placeholder only, still deferred. |
-| `/app/products` | required | Products list — server-paginated, `Table`/`Pagination`. |
-| `/app/products/:id` | required | Product detail — tabs: Übersicht, Varianten, Einheiten, Dokumentation (read-only "currently applicable documents" via `GET /api/publications/resolve?productId=`), Öffentlicher Zugriff (stable ID, public URL, QR via authenticated blob fetch), Verlauf (placeholder, see below). |
+| `/app/products` | required | Products list — server-paginated, `Table`/`Pagination`. Editor+ sees an "Einheiten importieren" action here that opens the CSV import wizard (see below). |
+| `/app/products/import` | required, Editor+ | CSV unit import wizard — 4 steps (Datei → Spalten zuordnen → Prüfen → Importieren). See "CSV unit import" below. |
+| `/app/products/:id` | required | Product detail — tabs: Übersicht, Varianten, Einheiten, Dokumentation (read-only "currently applicable documents" via `GET /api/publications/resolve?productId=`), Öffentlicher Zugriff (stable ID, public URL, QR via authenticated blob fetch), Verlauf (placeholder, see below). Supports `?tab=<key>` to deep-link straight to a tab (e.g. `?tab=units`, used by the import wizard's post-commit "Zur Einheiten-Übersicht" link). |
 | `/app/documents` | required | Documents list — server-paginated; Sprachen/Aktuelle Revision are derived client-side from each document's revisions (the API doesn't compute them). |
 | `/app/documents/:id` | required | Document detail — tabs: Übersicht, Revisionen (state-machine actions gated by role + current status, real backend errors surfaced via `Toast`; APPROVED revisions get a "Veröffentlichen" action for Publisher+ that opens the Publish Wizard), Anwendbarkeit (rule editor: Builder + Matrix, see below), Veröffentlichungen (read-only), Dateien (upload form), Verlauf (placeholder). |
 | `/app/documents/:id/publish/:revisionId` | required, Publisher+ | Publish Wizard — 5 steps (Revision → Anwendbarkeit → Auswirkung → Konflikte → Bestätigung). Steps 3–4 call `GET /api/publications/preview/:revisionId` fresh every time the user reaches step 3, never reusing a stale fetch. Step 5's "Jetzt veröffentlichen" calls the real `POST /api/publications`; a non-Publisher or a non-APPROVED revision sees an explanatory blocked state instead of the wizard (defense in depth — the same actions are already hidden in the Revisions tab). |
@@ -101,6 +102,67 @@ The public routes are intentionally at the app's root (`/p/...`, `/u/...`),
 matching `PUBLIC_BASE_URL` in `apps/api/.env.example` — a QR code encodes
 `{PUBLIC_BASE_URL}/p/{stableId}` and must land directly on this frontend's
 route of the same shape.
+
+## CSV unit import (`src/features/imports/`)
+
+`ImportWizardPage.tsx` implements the spec's 4-step wizard (1 Datei, 2
+Spalten zuordnen, 3 Prüfen, 4 Importieren) against
+`POST /api/imports/units/preview` and `POST /api/imports/units/:importId/commit`
+(`apps/api/src/imports/`). A few integration notes for future contributors:
+
+- **Entry point is top-level, not nested under a product.** `productReference`
+  is resolved per-row inside the CSV itself
+  (`imports.service.ts`'s `preview()`), so a single import can span many
+  products — there is no "import into this product" scoping at the API
+  level to nest the UI under. The action lives on the Products list
+  instead (`/app/products/import`), gated Editor+.
+- **Nothing is persisted before the explicit commit in step 4.** Both
+  preview calls (auto-detect on step 1→2, and the mapping-aware
+  re-validation on step 2→3) only stage a disposable, 30-minute-TTL
+  in-memory buffer server-side (`PendingImportStore`); step 4's commit is
+  the only call that writes anything, and it imports exactly the
+  previously-staged `importId`'s valid-row set.
+- **The backend stays the sole validation authority.** The wizard never
+  invents its own "is this mapping valid" or "is this row valid" logic —
+  every count and every error string rendered in step 3 comes straight
+  from the preview response. Required-field enforcement in step 2 is
+  purely visual (a `*` marker); if the user proceeds with a required field
+  unmapped, the next preview call comes back with `FILE_VALIDATION_FAILED`
+  from the server and that's what's shown.
+- **Auto-detection can fail so completely the backend never returns a
+  header list.** `imports.service.ts`'s `preview()` throws
+  `FILE_VALIDATION_FAILED` *before* returning `headers`/`columnMapping`
+  when it can't find a `serialNumber`/`productReference` column at all
+  (e.g. the file's headers don't match any known alias). Without a
+  workaround, the wizard could never reach step 2 to let the user fix
+  this by hand — exactly the case the editable-mapping feature exists
+  for. The fix is client-side only (no `apps/api` change): on that
+  specific error, `parseFirstLineLocally()` reads just the file's first
+  line and splits it on commas (no quote-handling — deliberately not a
+  full CSV parser) purely to populate the mapping step's dropdown
+  options. This is **never** used to decide validity — the next preview
+  call, with the user's chosen mapping, is what actually validates
+  against the server, exactly like the auto-detected path.
+- **Duplicate-in-file vs. other-invalid categorization is string-matching
+  on a known backend message, documented as a compromise.** The API
+  returns `invalidRows[].errors` as free-text sentences with no
+  structured "why" category. Rows whose serial number repeats within the
+  same file always carry the exact, stable phrase `"appears more than
+  once in this file"` (`csv-parser.ts`'s `findDuplicateSerialsInFile`), so
+  the review step's "davon Duplikate in der Datei" stat is derived by
+  matching that phrase (`DUPLICATE_IN_FILE_PHRASE` in
+  `ImportWizardPage.tsx`). This couples the UI to backend message text —
+  if that message ever changes, the count silently reads as 0 rather than
+  failing loudly. It does **not** affect what actually gets imported:
+  that's driven entirely by `validRows`/`invalidRows` as returned, never
+  re-derived from this categorization. Revisit if the API ever gains a
+  structured error code/category per invalid row.
+- **5,000+ row files stay usable.** Step 3 never renders the full
+  `validRows`/`invalidRows` arrays — only the first 30 valid rows and
+  first 50 invalid-row errors are rendered (with a "… und N weitere"
+  note), while the headline counts (`totalRows`, `validRows.length`,
+  `invalidRows.length`) always reflect the true, untruncated totals from
+  the server.
 
 ## Design system (`src/design-system/`)
 
@@ -152,6 +214,9 @@ src/
     publications/            api.ts (getPublishPreview, publishRevision,
                             revokePublication, listPublications),
                             PublishWizardPage (5-step publish flow)
+    imports/                 api.ts (previewImport — multipart, commitImport),
+                            ImportWizardPage (4-step CSV unit import flow —
+                            see "CSV unit import" above)
     shared/                 HistoryTab (the audit "not available yet" placeholder)
     public/               public QR-scan pages: PublicProductPage, PublicUnitPage,
                            PublicationList, LanguageSelector, usePublicResource (loading/
@@ -212,13 +277,19 @@ pattern, and role-aware hiding of mutation controls.
 
 Also now built: the Applicability Rule Editor (create/edit/delete with a
 live backend preview — see "Design invariant" above — plus a Matrix view
-reading the same underlying data) and the Publish Wizard (5-step flow
-ending in a real `POST /api/publications`, with honest handling of both a
-clean publish and a real `APPLICABILITY_CONFLICT` rejection).
+reading the same underlying data), the Publish Wizard (5-step flow ending
+in a real `POST /api/publications`, with honest handling of both a clean
+publish and a real `APPLICABILITY_CONFLICT` rejection), and the CSV unit
+import wizard (see "CSV unit import" above) — verified end-to-end with a
+real 5,000-row file (4,970 valid / 20 duplicate-in-file / 10 other-invalid),
+confirming exact preview counts, zero persistence before commit, exactly
+4,970 units actually created, a genuine page reload showing them in the
+Units tab, and a same-file re-upload correctly reporting all 4,970 as
+already-existing (no silent double-import).
 
-Deferred to later phases: CSV import UI, a real audit log UI (the
-per-object "Verlauf" tabs are honest placeholders, see above), a dedicated
-publication history/revoke UI beyond the read-only "Veröffentlichungen" tab
+Deferred to later phases: a real audit log UI (the per-object "Verlauf"
+tabs are honest placeholders, see above), a dedicated publication
+history/revoke UI beyond the read-only "Veröffentlichungen" tab
 (`revokePublication` exists in `features/publications/api.ts` but has no UI
 wired to it yet), and the real dashboard (KPI tiles, charts).
 
