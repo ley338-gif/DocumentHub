@@ -5,8 +5,9 @@ shared design system, the authenticated app shell with a bare login flow,
 the public QR-scan pages, the authenticated Products and Documents admin
 screens (with the document revision lifecycle), the Applicability Rule
 Editor (builder + matrix, with a live backend preview), the Publish
-Wizard, and the CSV unit import wizard. Audit UI and real dashboard KPIs
-are deliberately not built yet — see "What's built" below.
+Wizard, the CSV unit import wizard, Publication History, and the Audit UI.
+Only real dashboard KPIs are deliberately not built yet — see "What's
+built" below.
 
 ## Design invariant: this UI is a pure consumer of the backend's applicability logic
 
@@ -45,6 +46,63 @@ descriptions that came back from a real API response — principally
 rule matches a unit, computes specificity, or decides whether two rules
 conflict.** If a screen needs any of those, call the preview endpoint (or
 extend it server-side) rather than reimplementing the logic here.
+
+## Design invariant: Publication History renders only the frozen snapshot
+
+`src/features/publications/PublicationHistoryPage.tsx` and
+`PublicationDetailDrawer.tsx` render **only** fields off
+`publication.snapshot` (`GET /api/publications` /
+`GET /api/publications/:id`, which include `.snapshot` and the resolved
+`publishedByName`/`revokedByName`). In particular, every product/variant/
+batch/unit name inside `snapshot.applicabilityRules[]` (`productName`,
+`variantName`, `batchName`, `unitSerialNumber`, `productFamilyName`) is
+the name as it was **at publish time** — frozen server-side by
+`PublishService` into `PublicationSnapshot.applicabilityRules`, per
+`apps/api/src/applicability/applicability.types.ts`'s
+`AppliedRuleSnapshot` and `docs/publication-lifecycle.md`'s "Frozen scope
+names" section.
+
+**This screen must never call `GET /api/products/:id`,
+`GET /api/documents/:id`, or any other live-lookup endpoint to backfill a
+name for anything shown inside a publication's historical context.**
+Verified manually: publish a revision scoped to a product named "PumpMaster
+400", then rename the live product to "PumpMaster 500" — both the
+Publication History list and its detail drawer must keep showing "PumpMaster
+400" for that publication, because the live product row and the frozen
+snapshot are deliberately different data sources. The one intentional
+exception is the page's own product/document **filter dropdowns** — those
+legitimately query the live `GET /api/products`/`GET /api/documents` lists,
+because picking a filter value is a present-tense action, not a rendering
+of history.
+
+Rule formatting (`src/features/publications/ruleFormat.ts`) is presentation
+only — it joins already-resolved fields into a readable string and never
+recomputes or looks up anything. A snapshot written before the naming
+feature shipped has `productName`/etc. as `undefined`; the formatter falls
+back to a shortened id rather than crashing or showing nothing.
+
+## Audit UI: label/route mapping tables, not reinterpretation
+
+`src/features/audit/action-labels.ts` maps a backend `action` code (plus
+its `before`/`after` JSON) to a human-readable German label, and
+`src/features/audit/object-routes.ts` maps an `objectType` to an in-app
+route. Both are presentation-only lookup tables — per `docs/audit.md`,
+the UI may label an event but must never reinterpret, recompute, or filter
+what actually happened. The raw `action`, `objectType`, `objectId`,
+`before`, and `after` always stay fully visible in `AuditDetailDrawer.tsx`
+regardless of how the row is labeled. Extend these two tables together
+whenever a new `audit.record()` call site is added on the backend — see
+`src/features/audit/api.ts`'s `KNOWN_ACTIONS`/`KNOWN_OBJECT_TYPES` (built
+via `grep -rn "action:" apps/api/src` / `grep -rn "objectType:"
+apps/api/src`), which back the filter dropdowns and must stay in sync with
+the same two tables.
+
+**Judgment call — Actor filter source:** `GET /api/organizations/:id/members`
+is Administrator-only server-side, so the Audit UI cannot call it (a Viewer
+must be able to use this page). The Actor filter is instead populated from
+the distinct `actorId`/`actorName` pairs seen on the currently loaded page
+of audit events — a smaller, role-safe list rather than the full org
+roster. Documented here rather than silently narrowed.
 
 ## Running locally
 
@@ -88,7 +146,8 @@ npm run preview      # serve the production build locally
 | `/app/documents` | required | Documents list — server-paginated; Sprachen/Aktuelle Revision are derived client-side from each document's revisions (the API doesn't compute them). |
 | `/app/documents/:id` | required | Document detail — tabs: Übersicht, Revisionen (state-machine actions gated by role + current status, real backend errors surfaced via `Toast`; APPROVED revisions get a "Veröffentlichen" action for Publisher+ that opens the Publish Wizard), Anwendbarkeit (rule editor: Builder + Matrix, see below), Veröffentlichungen (read-only), Dateien (upload form), Verlauf (placeholder). |
 | `/app/documents/:id/publish/:revisionId` | required, Publisher+ | Publish Wizard — 5 steps (Revision → Anwendbarkeit → Auswirkung → Konflikte → Bestätigung). Steps 3–4 call `GET /api/publications/preview/:revisionId` fresh every time the user reaches step 3, never reusing a stale fetch. Step 5's "Jetzt veröffentlichen" calls the real `POST /api/publications`; a non-Publisher or a non-APPROVED revision sees an explanatory blocked state instead of the wizard (defense in depth — the same actions are already hidden in the Revisions tab). |
-| `/app/publications`, `/app/audit` | required | Sidebar nav stubs — no pages behind them yet (later phases: real audit UI; a dedicated publications list page — the Document Detail "Veröffentlichungen" tab and the Publish Wizard already cover the real, working flows). |
+| `/app/publications` | required | Publication History — server-paginated list of every `Publication` (ACTIVE/SUPERSEDED/REVOKED, unfiltered by default) via `GET /api/publications`, with server-side filters for status/product/document/date-range. Row click (or `?open=<id>` deep link, used by the Audit UI's Publication resource links) opens a detail `Drawer` with the full frozen snapshot: document metadata, SHA-256, the complete `applicabilityRules` array, and publish/revoke actor+timestamp. See "Publication History data-source invariant" below — this is the one screen in the app that must never call `GET /api/products/:id` or `GET /api/documents/:id`. |
+| `/app/audit` | required | Audit UI — server-paginated `GET /api/audit` with filters for free-text search, action, resource type, actor, and date range. Action-code → German label and objectType → route mappings live in `src/features/audit/action-labels.ts` and `src/features/audit/object-routes.ts` respectively — extend those two tables together whenever the backend adds a new `audit.record()` call site (see their file-level comments for the exact `grep` commands used to enumerate the current, complete set). Row click opens a detail `Drawer` with the true `action` code, `objectId`, full `before`/`after` JSON, and an explicit "nicht erfasst" for `requestId`/`ipAddress`/`userAgent` (always null today — see `docs/audit.md`). Read-only: no edit or delete control exists anywhere in this UI, matching the backend, which has no such endpoint at all. |
 
 **Audit history**: `GET /api/audit` only supports filtering by
 `objectType`/`action`/`from`/`to`, not `objectId`, so there is no way to
@@ -287,11 +346,22 @@ confirming exact preview counts, zero persistence before commit, exactly
 Units tab, and a same-file re-upload correctly reporting all 4,970 as
 already-existing (no silent double-import).
 
-Deferred to later phases: a real audit log UI (the per-object "Verlauf"
-tabs are honest placeholders, see above), a dedicated publication
-history/revoke UI beyond the read-only "Veröffentlichungen" tab
-(`revokePublication` exists in `features/publications/api.ts` but has no UI
-wired to it yet), and the real dashboard (KPI tiles, charts).
+Also now built: Publication History (`/app/publications`, list + detail
+drawer, server-paginated with status/product/document/date-range filters —
+see "Design invariant: Publication History renders only the frozen
+snapshot" above) and the Audit UI (`/app/audit`, list + detail drawer,
+server-paginated with search/action/resource-type/actor/date-range filters
+— see "Audit UI: label/route mapping tables" above).
+
+Deferred to later phases: the per-object "Verlauf" tabs on Product/Document
+Detail remain honest placeholders (see above — the audit endpoint has no
+`objectId` filter to build a true per-object trail from without fetching
+the whole org log), a dedicated revoke action in the Publication History UI
+itself (`revokePublication` exists in `features/publications/api.ts`, but
+no screen calls it yet — Publication History stays a pure read-only
+history view by design, matching the spec's read-only scope for this
+screen), the remaining admin screens (member management beyond what
+Organizations already expose), and the real dashboard (KPI tiles, charts).
 
 ### Known limitations in the Applicability Editor (documented judgment calls)
 
