@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { Button, StatusBadge, Table, type TableColumn, useToast } from "../../../design-system";
+import { Button, EmptyState, StatusBadge, Table, type TableColumn, useToast } from "../../../design-system";
 import type { DocumentRevisionDto } from "../../../lib/api-types";
 import { formatFileSize, languageLabel } from "../../../lib/format";
 import { hasRole } from "../../../lib/roles";
@@ -130,7 +130,12 @@ export function RevisionsTab({ documentId, revisions, role, onChanged }: Revisio
       columns={columns}
       rows={revisions}
       rowKey={(r) => r.id}
-      emptyMessage="Keine Revisionen vorhanden. Laden Sie eine Datei im Tab „Dateien“ hoch."
+      emptyMessage={
+        <EmptyState
+          title="Keine Revisionen vorhanden"
+          description="Laden Sie eine Datei im Tab „Dateien“ hoch, um die erste Revision anzulegen."
+        />
+      }
     />
   );
 }

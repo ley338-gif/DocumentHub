@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { Button, Dialog, Input, Pagination, Select, StatusBadge, Table, type TableColumn, useToast } from "../../../design-system";
+import { Button, Dialog, EmptyState, Input, Pagination, Select, StatusBadge, Table, type TableColumn, useToast } from "../../../design-system";
 import type { Batch, ProductVariant, Unit } from "../../../lib/api-types";
 import { usePaginated } from "../../../lib/use-paginated";
 import { createUnit, listBatches, listUnits, listVariants } from "../api";
@@ -52,7 +52,22 @@ export function UnitsTab({ productId, canWrite }: UnitsTabProps) {
           <Button onClick={() => setCreateOpen(true)}>Neue Einheit</Button>
         </div>
       )}
-      <Table columns={columns} rows={items} rowKey={(u) => u.id} emptyMessage={loading ? "Lädt…" : "Keine Einheiten."} />
+      <Table
+        columns={columns}
+        rows={items}
+        rowKey={(u) => u.id}
+        emptyMessage={
+          loading ? (
+            "Lädt…"
+          ) : (
+            <EmptyState
+              title="Keine Einheiten vorhanden"
+              description="Legen Sie eine Einheit an oder importieren Sie Einheiten über die CSV-Import-Funktion."
+              action={canWrite ? <Button onClick={() => setCreateOpen(true)}>Neue Einheit</Button> : undefined}
+            />
+          )
+        }
+      />
       <Pagination page={page} pageSize={pageSize} total={total} onPageChange={setPage} />
 
       <ManageBatchesDialog
