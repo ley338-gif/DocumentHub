@@ -199,6 +199,39 @@ export interface ApplicabilityRuleDto {
 
 export type PublicationStatus = "ACTIVE" | "SUPERSEDED" | "REVOKED";
 
+// Mirrors apps/api/src/applicability/applicability.types.ts's
+// AppliedRuleSnapshot exactly. This is the FROZEN, historical shape stored
+// in PublicationSnapshot.applicabilityRules at publish time — the
+// productFamilyName/productName/variantName/batchName/unitSerialNumber
+// fields are resolved names as they were the moment this snapshot was
+// created, NOT live lookups. They are optional/nullable because snapshots
+// written before this feature shipped never populated them — render
+// missing gracefully (e.g. "—"), never crash, and NEVER call
+// GET /api/products/:id (or any other live endpoint) to backfill a name
+// for anything rendered in a Publication History context.
+export interface AppliedRuleSnapshotDto {
+  id: string;
+  productFamilyId: string | null;
+  productId: string | null;
+  variantId: string | null;
+  batchId: string | null;
+  unitId: string | null;
+  serialFrom: string | null;
+  serialFromPrefix: string | null;
+  serialFromSequence: string | null;
+  serialTo: string | null;
+  serialToPrefix: string | null;
+  serialToSequence: string | null;
+  validFrom: string | null;
+  validUntil: string | null;
+  explicitExclusion: boolean;
+  productFamilyName?: string | null;
+  productName?: string | null;
+  variantName?: string | null;
+  batchName?: string | null;
+  unitSerialNumber?: string | null;
+}
+
 export interface PublicationSnapshotDto {
   id: string;
   publicationId: string;
@@ -215,7 +248,8 @@ export interface PublicationSnapshotDto {
   fileSize: number;
   sha256: string;
   storageKey: string;
-  applicabilityRules: unknown;
+  applicabilityRules: AppliedRuleSnapshotDto[];
+  scopedProductIds: string[];
   publishedAt: string;
   publishedById: string;
   previousPublicationId: string | null;
@@ -229,11 +263,13 @@ export interface PublicationDto {
   documentRevisionId: string;
   status: PublicationStatus;
   publishedById: string;
+  publishedByName?: string | null;
   publishedAt: string;
   supersededAt: string | null;
   supersededById: string | null;
   revokedAt: string | null;
   revokedById: string | null;
+  revokedByName?: string | null;
   createdAt: string;
   snapshot?: PublicationSnapshotDto;
 }
@@ -277,13 +313,21 @@ export interface PublishPreviewDto {
 export interface AuditEventDto {
   id: string;
   organizationId: string;
-  actorId: string;
+  actorId: string | null;
+  actorName?: string | null;
   action: string;
   objectType: string;
   objectId: string;
   before?: unknown;
   after?: unknown;
   timestamp: string;
+  // Accepted by AuditService.record() but currently never populated by any
+  // caller — every real row has these as null today. See docs/audit.md's
+  // "Known gaps" section. The UI must render an explicit "nicht erfasst"
+  // for a null value here, not omit the field or treat it as an error.
+  requestId?: string | null;
+  ipAddress?: string | null;
+  userAgent?: string | null;
 }
 
 // --- CSV unit import (apps/api/src/imports) ---

@@ -1,5 +1,5 @@
 import { apiRequest } from "../../lib/api-client";
-import type { Paginated, PublicationDto, PublishPreviewDto } from "../../lib/api-types";
+import type { Paginated, PublicationDto, PublicationStatus, PublishPreviewDto } from "../../lib/api-types";
 
 /**
  * The single source of truth for "what would happen if this revision were
@@ -30,4 +30,32 @@ export function revokePublication(id: string): Promise<PublicationDto> {
 
 export function listPublications(query: { documentId?: string; status?: string; pageSize?: number } = {}) {
   return apiRequest<Paginated<PublicationDto>>("/api/publications", { query });
+}
+
+/** Publication History list query — server-paginated, every filter is a
+ * real query param forwarded to GET /api/publications (see
+ * publications.controller.ts). Never filter a locally-cached page
+ * client-side; each filter change must trigger a fresh fetch. */
+export interface PublicationHistoryQuery {
+  status?: PublicationStatus;
+  documentId?: string;
+  productId?: string;
+  from?: string;
+  to?: string;
+}
+
+export function listPublicationHistory(
+  query: PublicationHistoryQuery,
+  page: number,
+  pageSize: number,
+): Promise<Paginated<PublicationDto>> {
+  return apiRequest<Paginated<PublicationDto>>("/api/publications", {
+    query: { ...query, page, pageSize },
+  });
+}
+
+/** Single publication detail — 404 if not found or belongs to another org
+ * (the backend never leaks existence with a 403). */
+export function getPublication(id: string): Promise<PublicationDto> {
+  return apiRequest<PublicationDto>(`/api/publications/${id}`);
 }

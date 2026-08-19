@@ -10,6 +10,8 @@ import { ProductDetailPage } from "./features/products/ProductDetailPage";
 import { DocumentsListPage } from "./features/documents/DocumentsListPage";
 import { DocumentDetailPage } from "./features/documents/DocumentDetailPage";
 import { PublishWizardPage } from "./features/publications/PublishWizardPage";
+import { PublicationHistoryPage } from "./features/publications/PublicationHistoryPage";
+import { AuditLogPage } from "./features/audit/AuditLogPage";
 import { ImportWizardPage } from "./features/imports/ImportWizardPage";
 
 export default function App() {
@@ -22,10 +24,10 @@ export default function App() {
 
       <Route path="/login" element={<LoginPage />} />
 
-      {/* Authenticated app tree. Products and Documents (with revisions) are
-          real pages this run — the applicability rule editor, publish
-          wizard, CSV import UI, audit UI, and real dashboard KPIs are later
-          phases. */}
+      {/* Authenticated app tree. Products, Documents, the applicability rule
+          editor, the publish wizard, CSV import, Publication History, and
+          the Audit UI are all real pages. Only the real dashboard KPIs
+          remain a later phase. */}
       <Route element={<RequireAuth />}>
         <Route path="/app" element={<AppLayout />}>
           <Route index element={<DashboardPage />} />
@@ -35,6 +37,8 @@ export default function App() {
           <Route path="documents" element={<DocumentsListPage />} />
           <Route path="documents/:id" element={<DocumentDetailPage />} />
           <Route path="documents/:id/publish/:revisionId" element={<PublishWizardPage />} />
+          <Route path="publications" element={<PublicationHistoryPage />} />
+          <Route path="audit" element={<AuditLogPage />} />
         </Route>
       </Route>
 

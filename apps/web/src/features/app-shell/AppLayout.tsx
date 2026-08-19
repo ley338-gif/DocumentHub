@@ -3,9 +3,7 @@ import { AppShell, Button, Select } from "../../design-system";
 import { useAuthStore } from "../auth/auth-store";
 import styles from "./AppLayout.module.css";
 
-// Stub nav items: only Dashboard has a real destination this run. The rest
-// (Products, Documents, Publications, Audit) arrive as separate later phases
-// per the brief — links are structurally present but non-functional.
+// All nav items now have real destinations.
 const NAV_ITEMS = [
   { label: "Dashboard", to: "/app" },
   { label: "Produkte", to: "/app/products" },
