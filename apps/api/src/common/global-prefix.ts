@@ -11,6 +11,8 @@ export const GLOBAL_PREFIX = "api";
 
 export const GLOBAL_PREFIX_EXCLUDES = [
   "health",
+  "health/live",
+  "health/ready",
   "p/:stableId",
   "p/:productStableId/publications/:publicationStableId/download",
   "u/:stableId",
