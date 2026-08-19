@@ -426,8 +426,22 @@ model PublicationSnapshot {
 
   // Frozen copy of the ApplicabilityRule rows that applied to the revision
   // at the moment of publish. Shape: AppliedRuleSnapshot[] (see
-  // src/applicability/applicability.types.ts).
+  // src/applicability/applicability.types.ts) — includes resolved
+  // product/variant/batch/unit NAMES at publish time, not just ids, so a
+  // later rename of any of those entities can never change what a
+  // historical Publication History view displays (see
+  // docs/publication-lifecycle.md's "Frozen scope names" section).
   applicabilityRules Json
+
+  // Distinct productIds directly referenced by any (non-exclusion) rule in
+  // applicabilityRules at publish time — denormalized purely so
+  // GET /api/publications?productId= can filter with an indexed query
+  // instead of scanning the JSON. Deliberately narrow: only rules that
+  // explicitly set productId are included; a rule scoped by
+  // productFamilyId/variantId/batchId/unitId alone does not (indirectly)
+  // populate this array. Documented limitation, see docs/csv-import.md's
+  // sibling doc docs/publication-lifecycle.md.
+  scopedProductIds String[] @default([])
 
   publishedAt   DateTime
   publishedById String
@@ -440,6 +454,7 @@ model PublicationSnapshot {
 
   @@index([organizationId])
   @@index([documentId, language])
+  @@index([scopedProductIds], type: Gin)
   @@map("publication_snapshots")
 }
 

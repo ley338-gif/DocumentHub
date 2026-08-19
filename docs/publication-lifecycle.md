@@ -150,6 +150,70 @@ veröffentlicht" instead of a red "Konflikt mit einer anderen
 Veröffentlichung" for a case that isn't actually a competing revision.
 See `test/publish-preview-already-published.e2e-spec.ts`.
 
+## Frozen scope names
+
+`PublicationSnapshot.applicabilityRules` freezes each rule's scope ids
+(`productId`, `variantId`, `batchId`, `unitId`, `productFamilyId`) — that
+alone is not enough for a historical view (Publication History) to show
+anything human-readable without joining back to the live `Product`/
+`ProductVariant`/`Batch`/`Unit` tables, which would defeat the entire
+point of the snapshot: **a later rename would silently change what
+history displays.**
+
+`PublishService.publish()` resolves and bakes the actual names
+(`productFamilyName`, `productName`, `variantName`, `batchName`,
+`unitSerialNumber`) into each rule INSIDE the publish transaction, via the
+same `resolveScopeNames()`/`withResolvedNames()` helpers
+(`src/applicability/resolve-scope-names.ts`) that `PublishPreviewService`
+uses to build its live preview — one implementation, reused, not
+duplicated. Once written, nothing ever re-resolves these from a live
+table; every historical read (`GET /api/publications`, `GET
+/api/publications/:id`) returns exactly what was frozen.
+
+Proven directly: `test/publication-history-api.e2e-spec.ts`'s "freezes the
+product name at publish time" test publishes a rule scoped to a product
+named "PumpMaster 400", renames the live product to "PumpMaster 500", and
+asserts — via the API, the list endpoint, and a direct DB read — that the
+snapshot still says "PumpMaster 400".
+
+Publications published *before* this change have no name fields in their
+`applicabilityRules` (they're `undefined` on old JSON blobs) — a UI must
+treat their absence as "name unavailable" (e.g. fall back to the raw id)
+rather than crash; there is no backfill migration for existing rows.
+
+## Publication History API
+
+`GET /api/publications` (Viewer+, paginated) supports:
+
+- `status` (`ACTIVE`/`SUPERSEDED`/`REVOKED`)
+- `documentId` — filters via `snapshot.documentId` (the frozen record, not
+  the live `DocumentRevision.documentId` — though for a given revision
+  these never differ, matching by way of the snapshot keeps the query
+  consistent with "publications describe what was published," not "what a
+  revision currently points at")
+- `productId` — filters via `snapshot.scopedProductIds`, a denormalized
+  array populated at publish time from every non-exclusion rule's direct
+  `productId` (see the field's doc comment in `schema.prisma`). **Narrow,
+  documented scope**: a rule scoped only by `productFamilyId`/`variantId`/
+  `batchId`/`unitId` (no direct `productId`) does not populate this array,
+  so filtering by product will not surface it even though that rule may in
+  practice apply to units of that product. Extending this to full
+  scope-inheritance filtering is a possible future enhancement, not
+  attempted here — it would require either a live resolution pass (which
+  breaks pagination) or a much larger denormalization.
+- `from`/`to` — inclusive range on `publishedAt`.
+
+`GET /api/publications/:id` (Viewer+) returns a single publication with
+its snapshot, 404 if it doesn't exist or belongs to another organization
+(never a 403 that would confirm the id belongs to someone else).
+
+Both endpoints enrich each publication with `publishedByName`/
+`revokedByName` — `Publication.publishedById`/`revokedById` are plain
+string columns (no Prisma relation to `User`), so these are resolved via
+a single batched `OrganizationMembership` query per page (never one
+lookup per row), scoped to the organization so a name never leaks for a
+user who isn't actually a member.
+
 ## Immutability
 
 Once a `DocumentRevision` reaches `APPROVED` or beyond, or has ever

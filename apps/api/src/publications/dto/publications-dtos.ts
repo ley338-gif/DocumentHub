@@ -19,6 +19,15 @@ export class PublicationListQueryDto extends PaginationQueryDto {
   @IsOptional()
   @IsString()
   productId?: string;
+
+  // Range on publishedAt, inclusive.
+  @IsOptional()
+  @IsDateString()
+  from?: string;
+
+  @IsOptional()
+  @IsDateString()
+  to?: string;
 }
 
 export class ResolveQueryDto {
