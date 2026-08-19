@@ -1,6 +1,7 @@
 import { Injectable } from "@nestjs/common";
 import { PrismaService } from "../prisma/prisma.service";
 import { Prisma, PrismaClient } from "@prisma/client";
+import { getRequestContext } from "../common/request-context-store";
 
 export interface RecordAuditEventInput {
   organizationId: string;
@@ -26,6 +27,13 @@ export class AuditService {
   constructor(private readonly prisma: PrismaService) {}
 
   async record(input: RecordAuditEventInput, client: AuditCapableClient = this.prisma) {
+    // Falls back to the current request's AsyncLocalStorage context (spec
+    // §48's "Request-ID möglichst bis Tenant-Audit propagieren") so none
+    // of this service's ~15 call sites need to thread requestId/ipAddress/
+    // userAgent through explicitly — only pass them here if a caller
+    // genuinely needs to override the ambient request (there is none
+    // today).
+    const ctx = getRequestContext();
     await client.auditEvent.create({
       data: {
         organizationId: input.organizationId,
@@ -35,9 +43,9 @@ export class AuditService {
         objectId: input.objectId,
         before: input.before === undefined ? Prisma.JsonNull : (input.before as Prisma.InputJsonValue),
         after: input.after === undefined ? Prisma.JsonNull : (input.after as Prisma.InputJsonValue),
-        requestId: input.requestId ?? null,
-        ipAddress: input.ipAddress ?? null,
-        userAgent: input.userAgent ?? null,
+        requestId: input.requestId ?? ctx?.requestId ?? null,
+        ipAddress: input.ipAddress ?? ctx?.ipAddress ?? null,
+        userAgent: input.userAgent ?? ctx?.userAgent ?? null,
       },
     });
   }
