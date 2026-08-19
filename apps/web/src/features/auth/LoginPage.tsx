@@ -1,5 +1,5 @@
 import { useState, type FormEvent } from "react";
-import { useLocation, useNavigate } from "react-router-dom";
+import { Link, useLocation, useNavigate } from "react-router-dom";
 import { Button, Input } from "../../design-system";
 import { useAuthStore } from "./auth-store";
 import styles from "./LoginPage.module.css";
@@ -67,7 +67,9 @@ export function LoginPage() {
           </Button>
         </form>
 
-        <p className={styles.hint}>Demo-Zugang: admin@mueller-maschinenbau.example / Passw0rd!</p>
+        <p className={styles.hint}>
+          Noch kein Konto? <Link to="/register">Registrieren</Link>
+        </p>
       </div>
     </div>
   );
