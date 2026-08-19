@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { useNavigate } from "react-router-dom";
 import { Button, StatusBadge, Table, type TableColumn, useToast } from "../../../design-system";
 import type { DocumentRevisionDto } from "../../../lib/api-types";
 import { formatFileSize, languageLabel } from "../../../lib/format";
@@ -22,6 +23,7 @@ const STATUS_LABEL: Record<string, string> = {
 
 export function RevisionsTab({ documentId, revisions, role, onChanged }: RevisionsTabProps) {
   const toast = useToast();
+  const navigate = useNavigate();
   const [busyId, setBusyId] = useState<string | null>(null);
 
   async function runTransition(
@@ -95,6 +97,17 @@ export function RevisionsTab({ documentId, revisions, role, onChanged }: Revisio
           );
         }
         if (r.status === "APPROVED" && hasRole(role, "PUBLISHER")) {
+          buttons.push(
+            <Button
+              key="publish"
+              variant="primary"
+              size="sm"
+              disabled={busy}
+              onClick={() => navigate(`/app/documents/${documentId}/publish/${r.id}`)}
+            >
+              Veröffentlichen
+            </Button>,
+          );
           buttons.push(
             <Button
               key="retire"

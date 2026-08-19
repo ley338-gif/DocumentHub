@@ -9,6 +9,7 @@ import { ProductsListPage } from "./features/products/ProductsListPage";
 import { ProductDetailPage } from "./features/products/ProductDetailPage";
 import { DocumentsListPage } from "./features/documents/DocumentsListPage";
 import { DocumentDetailPage } from "./features/documents/DocumentDetailPage";
+import { PublishWizardPage } from "./features/publications/PublishWizardPage";
 
 export default function App() {
   return (
@@ -31,6 +32,7 @@ export default function App() {
           <Route path="products/:id" element={<ProductDetailPage />} />
           <Route path="documents" element={<DocumentsListPage />} />
           <Route path="documents/:id" element={<DocumentDetailPage />} />
+          <Route path="documents/:id/publish/:revisionId" element={<PublishWizardPage />} />
         </Route>
       </Route>
 
