@@ -1,5 +1,6 @@
 import type { ReactNode } from "react";
-import { useEffect } from "react";
+import { useEffect, useRef } from "react";
+import { useFocusTrap } from "./useFocusTrap";
 import styles from "./Dialog.module.css";
 
 export interface DialogProps {
@@ -10,6 +11,9 @@ export interface DialogProps {
 }
 
 export function Dialog({ open, onClose, title, children }: DialogProps) {
+  const dialogRef = useRef<HTMLDivElement>(null);
+  useFocusTrap(open, dialogRef);
+
   useEffect(() => {
     if (!open) return;
     const onKeyDown = (e: KeyboardEvent) => {
@@ -24,10 +28,12 @@ export function Dialog({ open, onClose, title, children }: DialogProps) {
   return (
     <div className={styles.overlay} onClick={onClose} role="presentation">
       <div
+        ref={dialogRef}
         className={styles.dialog}
         role="dialog"
         aria-modal="true"
         aria-label={typeof title === "string" ? title : undefined}
+        tabIndex={-1}
         onClick={(e) => e.stopPropagation()}
       >
         {title && (

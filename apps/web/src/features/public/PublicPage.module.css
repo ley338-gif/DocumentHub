@@ -51,8 +51,10 @@
 }
 
 .productName {
-  font-size: var(--font-size-xl);
+  font-size: var(--font-size-2xl);
   font-weight: var(--font-weight-bold);
+  line-height: var(--line-height-tight);
+  overflow-wrap: break-word;
 }
 
 .metaList {
@@ -101,7 +103,11 @@
 }
 
 .languageChip {
-  padding: 0.5rem 0.875rem;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 44px;
+  padding: var(--space-2) var(--space-4);
   border-radius: var(--radius-sm);
   border: 1px solid var(--color-border-strong);
   background: var(--color-surface);
@@ -146,21 +152,32 @@
 }
 
 .pubName {
-  font-size: var(--font-size-base);
-  font-weight: var(--font-weight-medium);
+  font-size: var(--font-size-md);
+  font-weight: var(--font-weight-semibold);
   color: var(--color-text);
+  overflow-wrap: break-word;
 }
 
 .pubMeta {
   font-size: var(--font-size-xs);
   color: var(--color-text-muted);
-  margin-top: 0.15rem;
+  margin-top: var(--space-1);
 }
 
 .pubActions {
   display: flex;
   gap: var(--space-2);
   flex-shrink: 0;
+}
+
+.pubActionButton {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 44px;
+  min-width: 44px;
+  padding: var(--space-2) var(--space-4);
+  font-size: var(--font-size-sm);
 }
 
 .stateWrap {
@@ -215,7 +232,9 @@
   text-align: center;
   font-size: var(--font-size-xs);
   color: var(--color-text-muted);
-  padding: var(--space-4);
+  padding: var(--space-5) var(--space-4);
+  border-top: 1px solid var(--color-border);
+  margin-top: var(--space-2);
 }
 
 @media (min-width: 640px) {

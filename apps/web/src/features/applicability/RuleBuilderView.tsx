@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { Badge, Button, Dialog, Spinner, useToast } from "../../design-system";
+import { Badge, Button, Dialog, EmptyState, ErrorState, Spinner, useToast } from "../../design-system";
 import type { ApplicabilityRuleDto, PublishPreviewDto } from "../../lib/api-types";
 import { ApiError } from "../../lib/api-error";
 import { deleteApplicabilityRule } from "../documents/api";
@@ -86,13 +86,13 @@ export function RuleBuilderView({
       )}
 
       {!canPreview && (
-        <p style={{ color: "var(--color-text-secondary, #666)", marginBottom: "1rem" }}>
+        <p style={{ color: "var(--color-text-secondary)", marginBottom: "1rem" }}>
           Als Betrachter sehen Sie die Regelliste, aber keine Live-Vorschau (betroffene Einheiten, Spezifität,
           Konflikte) — die Vorschau-API erfordert mindestens die Rolle Editor.
         </p>
       )}
 
-      {canPreview && previewError && <p role="alert">{previewError}</p>}
+      {canPreview && previewError && <ErrorState error={previewError} onRetry={reloadPreview} />}
       {canPreview && preview && <ConflictBanner conflicts={preview.conflicts} />}
 
       {canPreview && preview && (
@@ -109,13 +109,30 @@ export function RuleBuilderView({
         </div>
       )}
       {canPreview && preview && preview.sampleSerials.length > 0 && (
-        <p style={{ marginTop: "-0.5rem", marginBottom: "1rem", color: "var(--color-text-secondary, #666)" }}>
+        <p style={{ marginTop: "-0.5rem", marginBottom: "1rem", color: "var(--color-text-secondary)" }}>
           Beispiel-Seriennummern: {preview.sampleSerials.join(", ")}
         </p>
       )}
       {canPreview && previewLoading && !preview && <Spinner size={24} />}
 
-      {rules.length === 0 && <p>Keine Anwendbarkeitsregeln für diese Revision.</p>}
+      {rules.length === 0 && (
+        <EmptyState
+          title="Keine Anwendbarkeitsregeln für diese Revision."
+          description="Ohne Regeln gilt diese Revision uneingeschränkt für alle Einheiten."
+          action={
+            canWrite ? (
+              <Button
+                onClick={() => {
+                  setEditingRule(null);
+                  setDrawerOpen(true);
+                }}
+              >
+                + Regel hinzufügen
+              </Button>
+            ) : undefined
+          }
+        />
+      )}
 
       <ul style={{ listStyle: "none", margin: 0, padding: 0, display: "flex", flexDirection: "column", gap: "0.75rem" }}>
         {rules.map((rule) => {
@@ -127,7 +144,7 @@ export function RuleBuilderView({
             <li
               key={rule.id}
               style={{
-                border: `1px solid ${hasRealConflict ? "var(--color-danger, #d92d20)" : "var(--color-border, #ddd)"}`,
+                border: `1px solid ${hasRealConflict ? "var(--color-danger-text)" : "var(--color-border)"}`,
                 borderRadius: 8,
                 padding: "0.75rem 1rem",
                 display: "flex",

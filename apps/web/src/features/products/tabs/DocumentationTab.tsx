@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { Spinner, Table, type TableColumn } from "../../../design-system";
+import { EmptyState, ErrorState, LoadingState, Table, type TableColumn } from "../../../design-system";
 import type { PublicationSnapshotDto } from "../../../lib/api-types";
 import { ApiError } from "../../../lib/api-error";
 import { resolvePublicationsForProduct } from "../api";
@@ -45,21 +45,21 @@ export function DocumentationTab({ productId }: DocumentationTabProps) {
     { key: "language", header: "Sprache", render: (s) => s.language },
   ];
 
-  if (loading) return <Spinner centered />;
+  if (loading) return <LoadingState label="Dokumente werden geladen…" />;
+  if (error) return <ErrorState error={error} fallback="Dokumente konnten nicht geladen werden." />;
 
   return (
     <div>
-      <p style={{ color: "var(--color-text-secondary, #666)", marginBottom: "1rem" }}>
+      <p style={{ color: "var(--color-text-secondary)", marginBottom: "1rem" }}>
         Aktuell für dieses Produkt anwendbare Dokumente (per Auflösung der Anwendbarkeitsregeln, keine direkte
         Eigentümerschaft im Datenmodell).
       </p>
-      {error && <p role="alert">{error}</p>}
       <Table
         columns={columns}
         rows={items}
         rowKey={(s) => s.id}
         onRowClick={(s) => navigate(`/app/documents/${s.documentId}`)}
-        emptyMessage="Keine aktuell anwendbaren Dokumente."
+        emptyMessage={<EmptyState title="Keine aktuell anwendbaren Dokumente" description="Für dieses Produkt ist derzeit keine Dokumentation veröffentlicht." />}
       />
     </div>
   );

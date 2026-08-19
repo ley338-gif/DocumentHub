@@ -1,12 +1,19 @@
 import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { Drawer, Spinner, StatusBadge } from "../../design-system";
+import { DescriptionItem, DescriptionList, Drawer, ErrorState, LoadingState, StatusBadge } from "../../design-system";
 import type { PublicationDto } from "../../lib/api-types";
-import { ApiError } from "../../lib/api-error";
 import { formatFileSize, languageLabel } from "../../lib/format";
 import { getPublication } from "./api";
 import { formatRuleScope, formatRuleValidity } from "./ruleFormat";
 import styles from "./PublicationDetailDrawer.module.css";
+
+/** Shared "not applicable" rendering for a null field inside this drawer —
+ * same muted/italic treatment as the Audit detail drawer's "nicht erfasst"
+ * fields, so the two read-only history drawers don't invent two different
+ * conventions for "there's genuinely nothing here". */
+function notApplicable(text: string) {
+  return <span className={styles.notAvailable}>{text}</span>;
+}
 
 export interface PublicationDetailDrawerProps {
   publicationId: string | null;
@@ -24,7 +31,7 @@ export function PublicationDetailDrawer({ publicationId, onClose }: PublicationD
   const navigate = useNavigate();
   const [publication, setPublication] = useState<PublicationDto | null>(null);
   const [loading, setLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+  const [error, setError] = useState<unknown>(null);
 
   useEffect(() => {
     if (!publicationId) {
@@ -39,7 +46,7 @@ export function PublicationDetailDrawer({ publicationId, onClose }: PublicationD
         if (!cancelled) setPublication(p);
       })
       .catch((err) => {
-        if (!cancelled) setError(err instanceof ApiError ? err.userMessage : "Veröffentlichung konnte nicht geladen werden.");
+        if (!cancelled) setError(err);
       })
       .finally(() => {
         if (!cancelled) setLoading(false);
@@ -53,9 +60,9 @@ export function PublicationDetailDrawer({ publicationId, onClose }: PublicationD
 
   return (
     <Drawer open={Boolean(publicationId)} onClose={onClose} title="Veröffentlichung">
-      {loading && <Spinner centered />}
-      {error && <p role="alert">{error}</p>}
-      {!loading && !error && publication && (
+      {loading && <LoadingState label="Veröffentlichung wird geladen…" />}
+      {error != null && <ErrorState error={error} fallback="Veröffentlichung konnte nicht geladen werden." />}
+      {!loading && error == null && publication && (
         <div className={styles.content}>
           <section>
             <h3>Status</h3>
@@ -79,20 +86,21 @@ export function PublicationDetailDrawer({ publicationId, onClose }: PublicationD
                   </a>{" "}
                   ({snapshot.documentType})
                 </p>
-                <dl className={styles.dl}>
-                  <dt>Revision</dt>
-                  <dd>{snapshot.revision}</dd>
-                  <dt>Sprache</dt>
-                  <dd>{languageLabel(snapshot.language)}</dd>
-                  <dt>Datei</dt>
-                  <dd>{snapshot.filename}</dd>
-                  <dt>MIME-Typ</dt>
-                  <dd>{snapshot.mimeType}</dd>
-                  <dt>Dateigröße</dt>
-                  <dd>{formatFileSize(snapshot.fileSize)}</dd>
-                  <dt>SHA-256</dt>
-                  <dd className={styles.mono}>{snapshot.sha256}</dd>
-                </dl>
+                <DescriptionList>
+                  <DescriptionItem label="Revision" value={snapshot.revision} />
+                  <DescriptionItem label="Sprache" value={languageLabel(snapshot.language)} />
+                  <DescriptionItem label="Datei" value={snapshot.filename} />
+                  <DescriptionItem label="MIME-Typ" value={snapshot.mimeType} />
+                  <DescriptionItem label="Dateigröße" value={formatFileSize(snapshot.fileSize)} />
+                  <DescriptionItem
+                    label="SHA-256"
+                    value={
+                      <span className={styles.mono} title={snapshot.sha256}>
+                        {snapshot.sha256}
+                      </span>
+                    }
+                  />
+                </DescriptionList>
               </>
             ) : (
               <p>Kein Snapshot vorhanden.</p>
@@ -101,16 +109,26 @@ export function PublicationDetailDrawer({ publicationId, onClose }: PublicationD
 
           <section>
             <h3>Veröffentlichung</h3>
-            <dl className={styles.dl}>
-              <dt>Veröffentlicht am</dt>
-              <dd>{new Date(publication.publishedAt).toLocaleString("de-DE")}</dd>
-              <dt>Veröffentlicht von</dt>
-              <dd>{publication.publishedByName ?? "—"}</dd>
-              <dt>Widerrufen am</dt>
-              <dd>{publication.revokedAt ? new Date(publication.revokedAt).toLocaleString("de-DE") : "— (nicht widerrufen)"}</dd>
-              <dt>Widerrufen von</dt>
-              <dd>{publication.revokedAt ? (publication.revokedByName ?? "—") : "— (nicht widerrufen)"}</dd>
-            </dl>
+            <DescriptionList>
+              <DescriptionItem label="Veröffentlicht am" value={new Date(publication.publishedAt).toLocaleString("de-DE")} />
+              <DescriptionItem label="Veröffentlicht von" value={publication.publishedByName ?? "—"} />
+              <DescriptionItem
+                label="Widerrufen am"
+                value={
+                  publication.revokedAt
+                    ? new Date(publication.revokedAt).toLocaleString("de-DE")
+                    : notApplicable("— (nicht widerrufen)")
+                }
+              />
+              <DescriptionItem
+                label="Widerrufen von"
+                value={
+                  publication.revokedAt
+                    ? (publication.revokedByName ?? "—")
+                    : notApplicable("— (nicht widerrufen)")
+                }
+              />
+            </DescriptionList>
           </section>
 
           <section>

@@ -1,4 +1,18 @@
+import { Spinner } from "../../design-system";
 import styles from "./PublicPage.module.css";
+
+/** Same card treatment (`.stateWrap`) as NotFoundState/EmptyPublicationsState/
+ * ErrorState below, so all four states this page can be in read as one
+ * consistent visual language rather than the spinner being a bare,
+ * unwrapped element while the other three sit inside a card. */
+export function LoadingPublicPageState() {
+  return (
+    <div className={styles.stateWrap}>
+      <Spinner size={32} />
+      <p className={styles.stateText}>Wird geladen…</p>
+    </div>
+  );
+}
 
 export function NotFoundState() {
   return (

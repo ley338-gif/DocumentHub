@@ -31,14 +31,14 @@ export function ConflictBanner({ conflicts }: ConflictBannerProps) {
         <div
           role="alert"
           style={{
-            border: "1px solid var(--color-danger, #d92d20)",
-            background: "var(--color-danger-bg, #fef3f2)",
+            border: "1px solid var(--color-danger-text)",
+            background: "var(--color-danger-bg)",
             borderRadius: 8,
             padding: "1rem",
             marginBottom: "1rem",
           }}
         >
-          <p style={{ margin: "0 0 0.5rem", fontWeight: 700, color: "var(--color-danger, #d92d20)" }}>
+          <p style={{ margin: "0 0 0.5rem", fontWeight: 700, color: "var(--color-danger-text)" }}>
             Diese Revision kann derzeit NICHT veröffentlicht werden — {real.length}{" "}
             {real.length === 1 ? "Konflikt" : "Konflikte"} in den Anwendbarkeitsregeln.
           </p>
@@ -58,8 +58,8 @@ export function ConflictBanner({ conflicts }: ConflictBannerProps) {
         <div
           role="status"
           style={{
-            border: "1px solid var(--color-border, #d0d5dd)",
-            background: "var(--color-surface-subtle, #f2f4f7)",
+            border: "1px solid var(--color-border)",
+            background: "var(--color-surface-muted)",
             borderRadius: 8,
             padding: "1rem",
             marginBottom: "1rem",

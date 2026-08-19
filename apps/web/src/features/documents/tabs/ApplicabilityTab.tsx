@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { Select, Tabs } from "../../../design-system";
+import { ErrorState, LoadingState, Select, Tabs } from "../../../design-system";
 import type { DocumentRevisionDto } from "../../../lib/api-types";
 import { hasRole } from "../../../lib/roles";
 import { useCurrentRole } from "../../auth/useCurrentRole";
@@ -56,8 +56,8 @@ export function ApplicabilityTab({ revisions }: ApplicabilityTabProps) {
 
       <Tabs items={SUB_TABS} activeKey={subTab} onChange={setSubTab} />
       <div style={{ marginTop: "1rem" }}>
-        {rulesLoading && rules.length === 0 && <p>Regeln werden geladen…</p>}
-        {rulesError && <p role="alert">{rulesError}</p>}
+        {rulesLoading && rules.length === 0 && <LoadingState label="Regeln werden geladen…" />}
+        {rulesError && <ErrorState error={rulesError} fallback="Regeln konnten nicht geladen werden." />}
 
         {subTab === "builder" && (
           <RuleBuilderView

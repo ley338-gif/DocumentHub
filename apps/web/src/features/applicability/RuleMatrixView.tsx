@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { Badge, Spinner, Table, type TableColumn } from "../../design-system";
+import { Badge, EmptyState, Spinner, Table, type TableColumn } from "../../design-system";
 import type { ApplicabilityRuleDto, PublishPreviewDto } from "../../lib/api-types";
 import { ConflictBanner } from "./ConflictBanner";
 
@@ -83,12 +83,15 @@ export function RuleMatrixView({ canPreview, rules, preview, previewLoading }: R
     {
       key: "specificity",
       header: sortHeader("specificity", "Spezifität"),
-      render: (r) => (r.specificity !== null ? r.specificity : "–"),
+      // Same Badge tone/text as RuleBuilderView's per-rule card, so
+      // specificity reads identically in both views of the same data.
+      render: (r) => (r.specificity !== null ? <Badge tone="info">Spezifität {r.specificity}</Badge> : "–"),
     },
     {
       key: "affected",
       header: sortHeader("affectedUnitsCount", "Betroffene Einheiten"),
-      render: (r) => (r.affectedUnitsCount !== null ? r.affectedUnitsCount : "–"),
+      render: (r) =>
+        r.affectedUnitsCount !== null ? <Badge tone="neutral">{r.affectedUnitsCount} Einheiten betroffen</Badge> : "–",
     },
     {
       key: "conflict",
@@ -107,7 +110,7 @@ export function RuleMatrixView({ canPreview, rules, preview, previewLoading }: R
   return (
     <div>
       {!canPreview && (
-        <p style={{ color: "var(--color-text-secondary, #666)", marginBottom: "1rem" }}>
+        <p style={{ color: "var(--color-text-secondary)", marginBottom: "1rem" }}>
           Als Betrachter sehen Sie die Regelliste ohne Spezifität/betroffene Einheiten/Konfliktstatus — diese Zahlen
           kommen aus der Editor+-geschützten Vorschau-API.
         </p>
@@ -119,7 +122,12 @@ export function RuleMatrixView({ canPreview, rules, preview, previewLoading }: R
           Gesamt betroffene Einheiten (Vereinigung aller Regeln): <strong>{preview.totalAffectedUnitsCount}</strong>
         </p>
       )}
-      <Table columns={columns} rows={sorted} rowKey={(r) => r.ruleId} emptyMessage="Keine Anwendbarkeitsregeln." />
+      <Table
+        columns={columns}
+        rows={sorted}
+        rowKey={(r) => r.ruleId}
+        emptyMessage={<EmptyState title="Keine Anwendbarkeitsregeln." />}
+      />
     </div>
   );
 }

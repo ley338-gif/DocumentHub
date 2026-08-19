@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { FilterBar, PageHeader, Pagination, Select, Spinner, Table, type TableColumn } from "../../design-system";
+import { EmptyState, ErrorState, FilterBar, LoadingState, PageHeader, Pagination, Select, Table, type TableColumn } from "../../design-system";
 import type { AuditEventDto } from "../../lib/api-types";
 import { usePaginated } from "../../lib/use-paginated";
 import { KNOWN_ACTIONS, KNOWN_OBJECT_TYPES, listAuditEvents } from "./api";
@@ -45,6 +45,8 @@ export function AuditLogPage() {
     (p, ps) => listAuditEvents(query, p, ps),
     [search, action, objectType, actorId, from, to],
   );
+
+  const filtersActive = Boolean(search || action || objectType || actorId || from || to);
 
   // Actors seen on the currently loaded page — a pragmatic, role-safe
   // source for the filter dropdown (see file-level comment).
@@ -116,23 +118,23 @@ export function AuditLogPage() {
           aria-label="Von"
           value={from}
           onChange={(e) => setFrom(e.target.value)}
-          style={{ padding: "0.5rem", border: "1px solid var(--color-border, #ccc)", borderRadius: 6 }}
+          style={{ padding: "0.5rem", border: "1px solid var(--color-border-strong)", borderRadius: "var(--radius-sm)" }}
         />
         <input
           type="date"
           aria-label="Bis"
           value={to}
           onChange={(e) => setTo(e.target.value)}
-          style={{ padding: "0.5rem", border: "1px solid var(--color-border, #ccc)", borderRadius: 6 }}
+          style={{ padding: "0.5rem", border: "1px solid var(--color-border-strong)", borderRadius: "var(--radius-sm)" }}
         />
       </FilterBar>
 
-      <p style={{ fontSize: "0.8rem", color: "var(--color-text-muted, #666)" }}>
+      <p style={{ fontSize: "var(--font-size-xs)", color: "var(--color-text-muted)" }}>
         Hinweis: Die Suche durchsucht Action, Ressourcentyp und Objekt-ID — nicht den Inhalt von Vorher/Nachher-Daten.
       </p>
 
-      {loading && <Spinner centered />}
-      {error && <p role="alert">{error}</p>}
+      {loading && <LoadingState label="Audit-Log wird geladen…" />}
+      {error && <ErrorState error={error} fallback="Audit-Log konnte nicht geladen werden." />}
       {!loading && !error && (
         <>
           <Table
@@ -140,7 +142,13 @@ export function AuditLogPage() {
             rows={items}
             rowKey={(e) => e.id}
             onRowClick={(e) => setDetailEvent(e)}
-            emptyMessage="Keine Audit-Ereignisse gefunden."
+            emptyMessage={
+              filtersActive ? (
+                <EmptyState title="Keine Audit-Ereignisse gefunden" description="Passen Sie die Filter an." />
+              ) : (
+                <EmptyState title="Noch keine Audit-Ereignisse" description="Für diese Organisation wurden bisher keine Aktionen protokolliert." />
+              )
+            }
           />
           <Pagination page={page} pageSize={pageSize} total={total} onPageChange={setPage} />
         </>

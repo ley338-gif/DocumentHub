@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { Button, Input, StatusBadge, useToast } from "../../../design-system";
+import { Button, DescriptionItem, DescriptionList, Input, StatusBadge, useToast } from "../../../design-system";
 import type { DocumentDto } from "../../../lib/api-types";
 import { ApiError } from "../../../lib/api-error";
 import { updateDocument } from "../api";
@@ -59,23 +59,13 @@ export function OverviewTab({ document, canWrite, onUpdated }: OverviewTabProps)
   }
 
   return (
-    <div style={{ display: "flex", flexDirection: "column", gap: "0.5rem", maxWidth: "32rem" }}>
-      <div>
-        <span style={{ fontWeight: 600 }}>Name: </span>
-        {document.name}
-      </div>
-      <div>
-        <span style={{ fontWeight: 600 }}>Typ: </span>
-        {document.documentType}
-      </div>
-      <div>
-        <span style={{ fontWeight: 600 }}>Beschreibung: </span>
-        {document.description ?? "–"}
-      </div>
-      <div>
-        <span style={{ fontWeight: 600 }}>Status: </span>
-        <StatusBadge status={document.status} />
-      </div>
+    <div style={{ display: "flex", flexDirection: "column", gap: "1rem" }}>
+      <DescriptionList>
+        <DescriptionItem label="Name" value={document.name} />
+        <DescriptionItem label="Typ" value={document.documentType} />
+        <DescriptionItem label="Beschreibung" value={document.description ?? "–"} />
+        <DescriptionItem label="Status" value={<StatusBadge status={document.status} />} />
+      </DescriptionList>
       {canWrite && (
         <div>
           <Button variant="outline" onClick={startEdit}>

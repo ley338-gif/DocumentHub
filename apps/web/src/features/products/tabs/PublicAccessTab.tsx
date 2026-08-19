@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { Spinner, StatusBadge } from "../../../design-system";
+import { ErrorState, Spinner, StatusBadge } from "../../../design-system";
 import type { Product } from "../../../lib/api-types";
 import { API_BASE_URL } from "../../../lib/api-client";
 import { fetchQrImageUrl } from "../api";
@@ -50,7 +50,7 @@ export function PublicAccessTab({ product }: PublicAccessTabProps) {
       </div>
       <div>
         <span style={{ fontWeight: 600, display: "block", marginBottom: "0.5rem" }}>QR-Code</span>
-        {error && <p role="alert">{error}</p>}
+        {error && <ErrorState error={error} fallback="QR-Code konnte nicht geladen werden." />}
         {!qrUrl && !error && <Spinner />}
         {qrUrl && <img src={qrUrl} alt={`QR-Code für ${product.name}`} width={200} height={200} />}
       </div>

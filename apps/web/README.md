@@ -5,9 +5,8 @@ shared design system, the authenticated app shell with a bare login flow,
 the public QR-scan pages, the authenticated Products and Documents admin
 screens (with the document revision lifecycle), the Applicability Rule
 Editor (builder + matrix, with a live backend preview), the Publish
-Wizard, the CSV unit import wizard, Publication History, and the Audit UI.
-Only real dashboard KPIs are deliberately not built yet — see "What's
-built" below.
+Wizard, the CSV unit import wizard, Publication History, the Audit UI, and
+a real Dashboard (KPI cards + recent-activity lists — see "Dashboard" below).
 
 ## Design invariant: this UI is a pure consumer of the backend's applicability logic
 
@@ -139,7 +138,7 @@ npm run preview      # serve the production build locally
 | `/u/:stableId` | none | Public unit page — mirrors `GET /u/:stableId`. |
 | `/login` | none | Login screen. |
 | `/app` | required | Authenticated app shell (sidebar + top bar). Redirects to `/login` if there's no valid session. |
-| `/app` (index) | required | Dashboard — placeholder only, still deferred. |
+| `/app` (index) | required | Dashboard — real KPI cards and recent-activity lists, see "Dashboard" below. |
 | `/app/products` | required | Products list — server-paginated, `Table`/`Pagination`. Editor+ sees an "Einheiten importieren" action here that opens the CSV import wizard (see below). |
 | `/app/products/import` | required, Editor+ | CSV unit import wizard — 4 steps (Datei → Spalten zuordnen → Prüfen → Importieren). See "CSV unit import" below. |
 | `/app/products/:id` | required | Product detail — tabs: Übersicht, Varianten, Einheiten, Dokumentation (read-only "currently applicable documents" via `GET /api/publications/resolve?productId=`), Öffentlicher Zugriff (stable ID, public URL, QR via authenticated blob fetch), Verlauf (placeholder, see below). Supports `?tab=<key>` to deep-link straight to a tab (e.g. `?tab=units`, used by the import wizard's post-commit "Zur Einheiten-Übersicht" link). |
@@ -223,6 +222,66 @@ Spalten zuordnen, 3 Prüfen, 4 Importieren) against
   `invalidRows.length`) always reflect the true, untruncated totals from
   the server.
 
+## Dashboard (`src/features/dashboard/DashboardPage.tsx`)
+
+Replaces the old "folgen in späteren Phasen" placeholder with a real
+dashboard built entirely from data already obtainable from existing
+`apps/api` endpoints — no new backend endpoints or routes were added for
+this. Every number is either a paginated list endpoint's cheap `total`
+(fetched with `pageSize: 1`, never by fetching and counting full pages) or
+the first page of an already-sorted list. Exact source per element:
+
+| Element | Endpoint | Field |
+| --- | --- | --- |
+| "Produkte" KPI | `GET /api/products?pageSize=1` | `.total` |
+| "Dokumente" KPI | `GET /api/documents?pageSize=1` | `.total` |
+| "Einheiten" KPI | `GET /api/units?pageSize=1` | `.total` |
+| "Aktive Veröffentlichungen" KPI | `GET /api/publications?status=ACTIVE&pageSize=1` | `.total` |
+| "Zuletzt veröffentlicht" list | `GET /api/publications?pageSize=5` | `.items` (already `orderBy: publishedAt desc` server-side, see `publications.controller.ts`) — document name/revision/language come from each item's frozen `.snapshot`, status from `StatusBadge`, row click navigates to `/app/publications?open=<id>` (the same deep-link Publication History already supports for the Audit UI's resource links) |
+| "Letzte Aktivität" list | `GET /api/audit?pageSize=5` (page 1) | `.items` (already `orderBy: timestamp desc` server-side) — labeled via the existing `auditEventLabel`/`resourceRoute` tables from the Audit UI, no new mapping logic |
+
+**Judgment calls / deliberately omitted:**
+
+- **"Einheiten" is a plain total, not an "active units" count.**
+  `GET /api/units` (`UnitListQueryDto` in `products.controller.ts`) only
+  accepts `productId`/`serialNumber` query params — no `status` filter —
+  even though `Unit.status` exists in the schema. Faking an active-only
+  count client-side would mean fetching and filtering every unit, exactly
+  the N+1-from-the-frontend pattern this phase avoids. Shown as a plain
+  total instead; adding a server-side `status` filter to `GET /api/units`
+  is a real, documented gap for a future backend phase.
+- **No "Revisionen in Review" / pending-review KPI.**
+  `GET /api/documents/:id/revisions` is per-document only — there is no
+  organization-wide revision list endpoint to get an org-wide `IN_REVIEW`
+  count from cheaply. Getting this number would require fetching every
+  document's revisions individually and counting client-side, which is
+  exactly the expensive N+1 pattern the brief rules out for this phase.
+  Rather than fake or estimate this number, it is simply not shown. A
+  future phase could add either a `GET /api/documents/:id/revisions`
+  org-wide variant or a `status` aggregate endpoint to make this cheap.
+- **No charts / trend lines** (e.g. the reference mockup's "Veröffentlichungen
+  (letzte 30 Tage)" line chart or "Dokumente nach Status" donut). Neither is
+  obtainable from a single cheap list-endpoint `total` — a real trend or a
+  per-status breakdown would need either client-side aggregation over every
+  row (not cheap once an org has thousands of documents/publications, see
+  the 5,000+ row import above) or a new backend aggregate endpoint, both
+  out of scope here. Documented as a gap rather than faked with placeholder
+  data.
+- **Per-section loading, not one page-level spinner.** The four KPI numbers
+  are fetched together (one `Promise.all`, one loading/error state) since
+  they're four cheap, closely-related `pageSize: 1` calls; the two
+  recent-activity lists each have their own independent loading/error
+  state and `onRetry`, since a slow/failing Audit fetch must not block the
+  KPI row or the Publications list from rendering.
+- **`StatTile` extracted to the design system.** The KPI cards reuse
+  `design-system/StatTile.tsx`, extracted from a page-local component of
+  the same name in the CSV Import wizard's Prüfen step
+  (`ImportWizardPage.tsx`) — that screen's summary counts (Gesamt/Gültig/
+  Ungültig/etc.) now import the shared component instead of a duplicate
+  local one. `StatTile` also gained an optional `icon` slot (an emoji,
+  matching the reference mockup's KPI cards) that the import wizard simply
+  doesn't pass.
+
 ## Design system (`src/design-system/`)
 
 Tokens (`tokens.css`) are CSS custom properties derived from the reference
@@ -230,13 +289,330 @@ mockups in `images/*.png` — color, spacing, radii, typography scale,
 shadows. Components are plain React + CSS Modules (one `.module.css` per
 component), mobile-first:
 
-`AppShell`, `Sidebar`, `PageHeader`, `Tabs`, `Table` (generic, column-driven,
-no built-in fetching), `FilterBar`, `Badge` / `StatusBadge`, `Dialog`,
-`Drawer`, `Pagination`, `Toast` (`ToastProvider` + `useToast()`), `Button`,
-`Input`, `Select`, `Spinner`. All are exported from
-`src/design-system/index.ts`.
+`AppShell`, `Sidebar`, `PageHeader` (title/subtitle/actions, plus an
+optional `breadcrumbs` prop — see below), `Breadcrumbs`, `Tabs`, `Table`
+(generic, column-driven, no built-in fetching; rows with `onRowClick` are
+keyboard-focusable and Enter/Space-activatable), `FilterBar`, `Badge` /
+`StatusBadge`, `Dialog`, `Drawer` (both trap focus and restore it to the
+triggering element on close — see "Dialog/Drawer a11y" below), `Pagination`,
+`Toast` (`ToastProvider` + `useToast()`), `Button`, `Input`, `Select`,
+`Spinner`, `EmptyState`, `LoadingState`, `ErrorState`, `DescriptionList` /
+`DescriptionItem` (see "Übersicht tab key-value layout" below), `WizardSteps`
+(see "Wizard step indicator" below), `StatTile` (see "Dashboard" above —
+extracted from the CSV Import wizard, now shared with the Dashboard's KPI
+cards). All are exported from `src/design-system/index.ts`.
 
-## Application code layout
+**These are the conventions this pass established — later phases (per-page
+polish, critical workflows, history/audit, dashboard, public page) should
+extend this system rather than inventing a parallel one:**
+
+### Status color mapping (`Badge`/`StatusBadge`)
+
+One tone table, `STATUS_TONE` in `Badge.tsx`, is the single source of truth
+for how any backend status string is colored — never inline a hex color or
+a second mapping elsewhere:
+
+| Tone | Statuses | Meaning |
+| --- | --- | --- |
+| `success` (green) | `ACTIVE`, `APPROVED`, `PUBLISHED`, `"Gültig"` | live/good state |
+| `neutral` (grey) | `DRAFT`, `RETIRED`, `SUPERSEDED` | inert/no-action-needed state |
+| `info` (blue) | `IN_REVIEW` | in-progress state |
+| `warning` (amber) | `INVITED` | pending-action state |
+| `danger` (red) | `REVOKED`, `SUSPENDED`, `EXPIRED` | stopped/problem state |
+
+Any status string not in the table falls back to `neutral` rather than
+throwing, so a new backend status never breaks rendering — but it should
+still be added to the table deliberately rather than left on the fallback.
+Use `<StatusBadge status={raw} />` (colors by the raw backend value) or
+`<StatusBadge status={raw} label={germanLabel} />` when the raw value
+shouldn't be shown verbatim (e.g. `RevisionsTab.tsx`'s `STATUS_LABEL` map)
+— coloring always stays keyed off the real status, only the text changes.
+
+### Button hierarchy (`Button`)
+
+Variants: `primary` (exactly one per view — "the one main action"),
+`secondary` (everything else actionable, including "Abbrechen"/"Zurück"),
+`outline` (secondary-weight actions that want less visual weight still,
+e.g. header utility actions like "Produktfamilien verwalten"), `ghost`
+(lowest-emphasis inline actions, e.g. a per-row "Bearbeiten"/"Herunterladen"
+button inside a table), `danger` (destructive/irreversible actions —
+revoke, delete, retire; red background, used at minimum for the Revisions
+tab's "Zurückziehen" and the Applicability rule editor's "Löschen"). This
+pass audited every `<Button>` call site across `src/features/` and found
+the hierarchy already consistently applied — no `secondary`-styled delete
+buttons or competing-primary bugs were found; the `danger` variant already
+existed and was already wired to the two real destructive actions above.
+
+### Breadcrumbs (`Breadcrumbs`, `PageHeader`'s `breadcrumbs` prop)
+
+`Breadcrumbs` (`design-system/Breadcrumbs.tsx`) takes `items:
+{ label, to? }[]` — omit `to` on the last (current-page) item. Pass it to
+`PageHeader` via `breadcrumbs={[...]}`, rendered above the title; it
+replaces a page's old plain "Zurück"/"Zurück zur Übersicht" navigation
+button (removed from `ProductDetailPage`, `DocumentDetailPage`, and
+`PublishWizardPage`'s header actions in this pass — their normal-state
+"go back" button was redundant once the breadcrumb trail exists; error
+states there still keep a plain fallback button since there's no product/
+document name to build a breadcrumb from). A page-level "Abbrechen" button
+that performs a real action (e.g. the Publish Wizard's) is *not* replaced
+by breadcrumbs — breadcrumbs are for hierarchy navigation, not for
+cancel/confirm actions. Only these three pages were wired up in this pass;
+retrofitting the remaining detail-ish views is explicitly left to later
+phases (see task brief) — follow the same `{ label, to? }[]` shape and the
+same "keep a real action button, drop a pure-navigation one" rule.
+
+### Empty / loading / error states
+
+- `EmptyState` — `title` (required), optional `icon`/`description`/`action`.
+  Pass it as a `Table`'s `emptyMessage` (it renders fine inside the table's
+  centered empty `<td>`) whenever a list can be legitimately empty, with an
+  `action` button when there's an obvious next step (e.g. "Neues Produkt").
+  Reserve a bare string `emptyMessage` for the transient "Lädt…" case.
+- `LoadingState` — wraps `Spinner` with one consistent centered
+  size/spacing convention for a whole view/section being loading. Keep a
+  bare inline `<Spinner size={..} />` (no wrapper) only for small
+  in-context indicators next to other content (e.g. inside a preview panel
+  that's still loading while the rest of the page is interactive).
+- `ErrorState` — **the one correct way to render a caught error.** Pass
+  `error={caughtErrorOrString}` and it renders `ApiError.userMessage` (the
+  German, user-safe message) when given an `ApiError`, the string as-is
+  when given one, or a German `fallback` otherwise — never a raw error code
+  or English backend message. Optional `onRetry`/`retryLabel` add a retry
+  button. This pass converted 5 real call sites across 3 feature areas
+  (`ProductsListPage`, `DocumentsListPage` in products/documents;
+  `ProductDetailPage`, `DocumentDetailPage`; `PublicationHistoryPage`,
+  `AuditLogPage`, `PublishWizardPage` in publications/audit) from a bare
+  `<p role="alert">{error}</p>` to `<ErrorState .../>`. The many remaining
+  `<p role="alert">{message}</p>` sites (mostly inline business-rule
+  messages, e.g. "nur APPROVED Revisionen können veröffentlicht werden",
+  which aren't caught exceptions) were deliberately left alone — only
+  genuine caught-error rendering should move to `ErrorState`.
+
+**Phase 2 (Products/Documents list + detail polish)** finished converting
+the remaining bare `<Spinner centered />`/`<p role="alert">{error}</p>` call
+sites inside Product Detail's and Document Detail's individual tabs —
+`products/tabs/DocumentationTab.tsx`, `products/tabs/PublicAccessTab.tsx`,
+`documents/tabs/PublicationsTab.tsx`, and the rules-loading/rules-error
+lines in `documents/tabs/ApplicabilityTab.tsx` (the tab's own loading/error
+wrapper only — the Applicability Editor's internals in
+`features/applicability/` are a later phase's scope and were left alone).
+Also converted the plain-string `Table` `emptyMessage`s on
+`products/tabs/VariantsTab.tsx` and `UnitsTab.tsx` (now `EmptyState` with a
+"Neue Variante"/"Neue Einheit" action, matching the list-page convention of
+keeping the header create button *and* mirroring it into the empty state's
+action slot — not a redundant floating button, since the header button is
+the page's/tab's normal create affordance, not something that only exists
+because the list is empty) and on `documents/tabs/RevisionsTab.tsx` and
+`documents/tabs/PublicationsTab.tsx` (no action slot there — the real
+action, uploading a file, lives on a different tab). `FilesTab.tsx`'s
+`fieldError` was deliberately left as a plain `<p role="alert">` — it's a
+client-side file-picker validation message, not a caught API error, same
+category as the "remaining sites" called out above.
+
+**Phase 3 (Applicability Editor, Publish Wizard, CSV Import wizard)**
+converted the internals of `features/applicability/` that Phase 2
+deliberately left alone: `RuleBuilderView.tsx`'s preview-fetch error
+(`previewError`, now `ErrorState` with a retry wired to `reloadPreview`)
+and its empty-rules-list message (now `EmptyState`, mirroring the
+"+ Regel hinzufügen" action into the empty state exactly like Phase 2's
+Variants/Units convention), `RuleMatrixView.tsx`'s `Table` `emptyMessage`,
+and `UnitPicker.tsx`'s unit-browse fetch error. Also converted in the
+wizards: `PublishWizardPage.tsx`'s Impact/Conflicts steps'
+`previewError`/`previewLoading` (now `ErrorState`/`LoadingState`, since
+the preview is the step's only content while loading — not an in-context
+indicator next to other interactive content), and
+`ImportWizardPage.tsx`'s file-analysis/mapping-preview errors and the
+review step's valid-rows-table `emptyMessage`. Left alone, matching the
+existing rule: `RuleBuilderView`'s/`RuleMatrixView`'s bare in-context
+`<Spinner>` while a preview reloads next to an already-interactive rule
+list (matches the "in-context indicator" exception above), the
+Viewer-role "you need Editor+" info paragraphs (not an error — an honest
+permission notice), `ConflictBanner` (structured domain output, not a
+generic error — see its own file comment), the CSV import's row-level
+validation-error list and duplicate/other stat tiles (same reason), and
+the several remaining business-rule `<p role="alert">` messages in both
+wizards (e.g. "keine gültigen Zeilen", "Konflikte bestehen laut letzter
+Vorschau") — none of these are caught exceptions, so none convert to
+`ErrorState`.
+
+### Übersicht tab key-value layout (`DescriptionList`, `DescriptionItem`)
+
+Product Detail's and Document Detail's read-only "Übersicht" tab had
+drifted into two slightly different hand-rolled key-value patterns (a local
+`Field` helper component in `products/tabs/OverviewTab.tsx` vs. inline
+`<div><span style={{fontWeight:600}}>Label: </span>value</div>` rows in
+`documents/tabs/OverviewTab.tsx`) — same visual result, two copies of the
+markup. Phase 2 unified both onto one shared component,
+`design-system/DescriptionList.tsx`: a semantic `<dl>` (`DescriptionList`)
+of `DescriptionItem` label/value rows (`<dt>`/`<dd>`), same bold-label/
+plain-value look as before. Use it for any future read-only key-value
+summary block — pass a `StatusBadge` as an item's `value` (as both Overview
+tabs do for the `Status` row) rather than reaching for the raw string.
+Phase 3 added a third use: `PublishWizardPage.tsx`'s step 1 ("Zu
+veröffentlichende Revision") replaced a hand-rolled raw `<dl><dt>/<dd>`
+block with `DescriptionList`/`DescriptionItem`. The Applicability Editor's
+per-rule cards were deliberately **not** converted — their scope
+description is a dynamic, backend-composed German sentence (`rp.description`
+/ `fallbackDescription`), not a label/value list, so it stays as prose next
+to its `Badge`s, matching `ConflictBanner`'s prose convention.
+
+### Wizard step indicator (`WizardSteps`)
+
+**Phase 3 (Applicability Editor, Publish Wizard, CSV Import wizard)** found
+the Publish Wizard and the CSV Import wizard had already converged on
+identical inline markup for their step indicator (a flat row of `Badge`
+pills, one per step) — same code, copy-pasted rather than shared. Both were
+also visually flatter than the numbered-circle/connector step indicator
+shown in the reference mockup (`images/Deutscher Veröffentlichungsassistent
+für Dokumente.png`). This pass extracted a shared
+`design-system/WizardSteps.tsx`: pass `steps: {key, label}[]` and
+`currentIndex`, it renders a done (green circle + checkmark) / current
+(filled blue circle) / upcoming (outline circle) sequence connected by
+lines, matching the mockup. It is purely presentational — no navigation
+logic, no opinion on which step is reachable, no validation; both wizards
+still own their own `stepIndex` state and back/next logic exactly as
+before. Any future multi-step flow should reuse this component rather than
+inventing another inline step-indicator pattern.
+
+### Matrix/Builder share visual treatment, not just data
+
+The Applicability Editor's Builder and Matrix views (`RuleBuilderView.tsx`,
+`RuleMatrixView.tsx`) already shared the same underlying rule + preview
+data (passed down from `useApplicabilityData` via `ApplicabilityTab.tsx` —
+see the "Design invariant" section above), but had drifted apart on how
+that data was *rendered*: Builder showed specificity and affected-unit
+counts as `Badge` pills (`<Badge tone="info">Spezifität {n}</Badge>`,
+`<Badge tone="neutral">{n} Einheiten betroffen</Badge>`), while Matrix
+rendered the same two numbers as plain table-cell text. Phase 3 fixed
+Matrix's `specificity`/`affectedUnitsCount` columns to render the identical
+`Badge` tone/text as Builder, so switching between the two tabs reads as
+the same rule set styled two ways (card vs. table), not two different
+data models. The conflict column is a deliberate, narrower exception: Matrix
+needs an explicit value in every row (`Ja`/`Nein`/`Bereits veröffentlicht`
+via `Badge` tone danger/success/neutral) since a table row can't just omit
+a cell, whereas Builder's per-rule card only shows a conflict `Badge` when
+one actually exists — same tone mapping, different (and correctly
+different) structural convention for card vs. table. **Any future field
+added to the preview response that both views render must follow the same
+rule: same `Badge` tone and text in both views, unless the view's structure
+(card vs. table row) genuinely requires a different presence/absence
+convention — don't let the two views' rendering re-diverge.**
+
+### Dialog/Drawer a11y (`useFocusTrap`)
+
+Both `Dialog` and `Drawer` use the shared `useFocusTrap(open, containerRef)`
+hook (`design-system/useFocusTrap.ts`): on open, focus moves into the panel
+— respecting a field's own `autoFocus` if one already claimed it, otherwise
+the first focusable element — and Tab/Shift+Tab is trapped inside the
+panel; on close, focus returns to whatever triggered the open. Escape-to-
+close was already wired up per-component and is unchanged. **Judgment call
+worth knowing about:** the trigger element must be captured during React's
+*render* phase (`if (open && !wasOpenRef.current) triggerRef.current =
+document.activeElement`), not inside a `useEffect` — a field's native
+`autoFocus` attribute is applied during React's commit phase, before
+passive effects run, so capturing inside an effect reliably grabs the
+wrong element (something already inside the just-opened panel) instead of
+the real trigger. Table rows with `onRowClick` were made keyboard-focusable
+(`tabIndex={0}`, `role="button"`, Enter/Space activation) specifically so
+this restore-focus behavior has something focusable to return to when a
+Drawer/Dialog was opened by clicking a table row.
+
+### Tokens (`tokens.css`)
+
+Already a real scale before this pass (spacing `--space-1`…`--space-12`,
+type `--font-size-xs`…`--font-size-2xl`, radii `--radius-sm/md/lg/full`,
+the full status color set above). This pass's actual finding: several
+feature files had drifted into inline `style={{ color: "var(--color-token,
+#hardcodedhex)" }}` fallbacks, some referencing tokens that don't exist at
+all (`--color-danger` — the real token is `--color-danger-text`;
+`--color-surface-subtle` — the real token is `--color-surface-muted`). Fixed
+across `PublishWizardPage.tsx`, `FilesTab.tsx`, `PublicationHistoryPage.tsx`,
+`AuditLogPage.tsx`, `ImportWizardPage.tsx`, and the `applicability/*`
+files to reference the real token with no hardcoded fallback. **Convention
+going forward: never add a hex fallback to a `var(--token, #hex)` — if the
+token doesn't already exist in `tokens.css`, add it there, don't
+work around it inline.**
+
+### Phase 4 (Publication History, Audit UI)
+
+Audited the two remaining data-dense table+filter+detail screens
+(`features/publications/PublicationHistoryPage.tsx` +
+`PublicationDetailDrawer.tsx`, `features/audit/AuditLogPage.tsx` +
+`AuditDetailDrawer.tsx`) against the reference mockup
+(`images/Audit-Log im CE Document Hub.png`) and against each other.
+Findings and fixes, all presentation-only — no change to either screen's
+`usePaginated`/`listPublicationHistory`/`listAuditEvents` calls or query
+building, and the Publication History "frozen snapshot" invariant (see
+above) is untouched:
+
+- **FilterBar/Table were already consistent** between the two screens (same
+  `FilterBar` layout, same raw `<input type="date">` treatment for the
+  Von/Bis range — identical inline style block in both files, a pre-existing
+  duplication left alone rather than extracted, since neither screen
+  diverged from the other) and both already relied on the shared `Table`'s
+  `overflow-x: auto` wrapper for independent horizontal scroll — confirmed
+  still holding at 1440/1280/1024px for Publication History's wider,
+  six-column table.
+- **`PublicationDetailDrawer` was still on the pre-Phase-2 pattern**: a bare
+  `<Spinner centered />` for loading and a bare `<p role="alert">{error}</p>`
+  for its `getPublication` fetch error, both missed by Phase 2's ErrorState
+  sweep because this file wasn't in scope yet. Converted to
+  `LoadingState`/`ErrorState`, matching every other detail-fetch in the app.
+  `AuditDetailDrawer` never needed this — it receives its `event` as a prop
+  from the already-loaded list, no fetch of its own.
+- **Both detail drawers hand-rolled their own `<dl className={styles.dl}>`
+  grid** instead of using the shared `DescriptionList`/`DescriptionItem`
+  (Phase 2/3 convention, see above) — near-identical CSS in both files'
+  `.module.css` (a second, third copy of the same grid-two-column pattern
+  Phase 2 already unified for the Übersicht tabs). Converted every
+  label/value block in both drawers (Publication's Dokument/Veröffentlichung
+  sections, Audit's Kerndaten/Technischer Kontext sections) to
+  `DescriptionList`; removed the now-dead `.dl` CSS from both module files.
+- **Two different "nothing here" conventions for a null field**:
+  Publication's un-revoked `Widerrufen am`/`von` showed plain, unstyled
+  `"— (nicht widerrufen)"` text; Audit's null `requestId`/`ipAddress`/
+  `userAgent` showed plain, unstyled `"nicht erfasst"` text — same *kind* of
+  fact (this field is genuinely inapplicable/not captured, not a loading
+  gap), two different-looking renderings. Unified the visual treatment only
+  (each screen's own German wording stays, since the two cases are
+  semantically different — "not revoked" vs. "not recorded" — only the
+  *styling* needed to match): both `.module.css` files now define an
+  identical `.notAvailable { color: var(--color-text-muted); font-style:
+  italic; }`, applied via a small helper in each drawer file
+  (`notApplicable()` in `PublicationDetailDrawer.tsx`, the updated
+  `notRecorded()` in `AuditDetailDrawer.tsx`). Any future "no value" field in
+  either screen should reuse this same visual pattern rather than inventing
+  a third one.
+- **`--font-mono` didn't exist as a token**: both drawers' `.mono` class
+  either hardcoded `font-family: monospace` (Audit) or referenced a
+  non-existent `var(--font-mono, monospace)` fallback (Publication) — the
+  latter is exactly the anti-pattern Phase 3's tokens section warns against
+  ("never add a hex/value fallback to a `var(--token)` — if the token
+  doesn't exist, add it"). Added a real `--font-mono` token to
+  `tokens.css` and pointed both `.mono` classes at it with no fallback.
+- **Empty-state copy made filter-aware**: both list pages' `Table`
+  `emptyMessage` were plain strings ("Keine Veröffentlichungen gefunden."/
+  "Keine Audit-Ereignisse gefunden."). Converted to `EmptyState` with two
+  variants each, chosen by whether any filter is currently active
+  (`filtersActive` — a simple `Boolean(...)` OR of the screen's filter
+  state, not a new fetch or a new data source): "Keine … gefunden" +
+  "Passen Sie die Filter an." when a filter is narrowing an otherwise
+  non-empty result set, vs. a plain "Noch keine …" wording when the
+  organization genuinely has nothing yet.
+- **Breadcrumb targets verified, not rebuilt**: Publication History's
+  document links (`/app/documents/:id`) and Audit's resource links
+  (`Product`/`Document`/`DocumentRevision`/`Publication`, via
+  `object-routes.ts`) land on pages that already render their own
+  breadcrumbs from Phase 2 — nothing needed to change on either target page.
+  Neither Publication History nor Audit gets breadcrumbs itself, matching
+  the existing "top-level nav item" rule.
+- **Button hierarchy**: both screens are read-only by design (no
+  edit/delete affordance exists in either the UI or the backend for these
+  two resources) — confirmed no stray `primary`-styled button implying an
+  action, and pagination is the design system's own `Pagination` component
+  on both, not a custom control.
+
+### Application code layout
 
 ```
 src/
@@ -253,7 +629,8 @@ src/
     auth/               auth-store.ts (Zustand), LoginPage, RequireAuth (route guard),
                         useCurrentRole (current org membership role)
     app-shell/           AppLayout — wires AppShell + Sidebar + org switcher for /app/*
-    dashboard/            placeholder DashboardPage
+    dashboard/            DashboardPage — real KPI cards + recent-activity
+                            lists, see "Dashboard" above
     products/              ProductsListPage, ProductDetailPage + tabs/, api.ts,
                             ManageFamiliesDialog, ManageBatchesDialog, CreateProductDialog
     documents/              DocumentsListPage, DocumentDetailPage + tabs/, api.ts
@@ -305,6 +682,74 @@ directly (via `session-storage.ts`) to attach `Authorization` and
 and the client.
 
 ## Public page states
+
+**Phase 6 (final phase of this UI polish pass)** re-audited this screen —
+the one page in the app with no `AppShell`/`Sidebar`, built mobile-first
+from this project's very first frontend phase, deliberately independent of
+the authenticated shell and left that way here too. No structural change:
+same four states, same standalone frame, same anonymous `/p`/`/u` API
+calls (`api.ts`'s `anonymous: true`, confirmed still skipping
+`Authorization`/`X-Organization-Id`). What changed, all in
+`features/public/PublicPage.module.css` plus the two files below:
+
+- **Token adoption**: three remaining hardcoded values replaced with the
+  Phase 1 scale — `.languageChip`'s `0.5rem 0.875rem` padding →
+  `var(--space-2) var(--space-4)`, `.pubMeta`'s `0.15rem` margin →
+  `var(--space-1)`. (`.brandIcon`'s `28px` and `.stateIcon`'s `48px` were
+  deliberately left as literal pixel sizes — they're fixed icon-badge
+  dimensions with no matching entry on the spacing scale, not a
+  spacing/layout value that tokenizing would make more consistent.)
+- **Typography hierarchy**: the product/unit name (`.productName`) is now
+  `--font-size-2xl` (was `-xl`) so it unambiguously reads as the page's one
+  primary heading over the section titles (`--font-size-md`) and metadata
+  (`--font-size-sm`/`-xs`) below it, matching the reference mockups'
+  emphasis. Each document row's name (`.pubName`) moved from
+  `font-weight-medium`/`font-size-base` to `-semibold`/`-md` so it's clearly
+  the most prominent element in the row, with type/revision/size staying on
+  one small muted `.pubMeta` line beneath it (language isn't repeated per
+  row since the list is already filtered to the selected language above the
+  list — a deliberate difference from the admin table-row convention, which
+  has no such filter and shows language directly).
+- **Touch targets**: the language-selector chips and the "Öffnen"/
+  "Herunterladen" buttons were measured in a live 390px session before this
+  pass — routinely under 36px tall (the shared `Button` `sm` size, tuned for
+  dense admin tables). Both now hit a real 44×44px minimum: `.languageChip`
+  gained `min-height: 44px` with flex centering, and the publication row
+  actions moved off the shared `Button` `sm`/`md` classes onto a new
+  page-local `.pubActionButton` (`min-height`/`min-width: 44px`) — added
+  locally rather than changing `Button.module.css`'s `sm` globally, since
+  `sm` is used throughout the admin table rows this phase must not touch.
+  Verified via `getBoundingClientRect()` in a live browser session at
+  390px: all four tappable elements measured exactly 44px tall.
+- **Loading state now uses the same card treatment as the other three.**
+  Previously `PublicProductPage`/`PublicUnitPage` rendered a bare
+  `<Spinner centered />` for `status === "loading"` while
+  not-found/empty/error all used the `.stateWrap` card — four states, three
+  different containers plus one bare element. Added
+  `LoadingPublicPageState` to `PublicPageStates.tsx` (same `.stateWrap`
+  card, a `Spinner` plus "Wird geladen…" text) so all four states now share
+  one consistent card/container language.
+- **Footer** (`.footer`, "Document Hub · Dokumente immer aktuell.") gained
+  a `border-top` and slightly more vertical padding so it reads as a
+  deliberate closing element separated from the document-list card above
+  it, rather than text that happened to be at the bottom of the page.
+
+**Verified responsive at the three required widths** (real browser session
+against the live dev server, real seeded data — `PumpMaster 400`,
+`stableId seed-product-pumpmaster-400`, and one of its units — not just
+static CSS review):
+
+- **390px**: `document.documentElement.scrollWidth` === `window.innerWidth`
+  (390 === 390, no horizontal scroll); all four tappable elements
+  (`Deutsch`/`English` chips, `Öffnen`/`Herunterladen`) measured exactly
+  44px tall via `getBoundingClientRect()`.
+- **430px**: same no-overflow check (430 === 430); unit page
+  (`/u/:stableId`, "Seriennummer" metadata row) confirmed visually
+  alongside the product page.
+- **1024px**: the existing `max-width: 720px` centered container (already
+  in place pre-Phase-6) keeps the card content from stretching edge-to-edge
+  on a laptop-opened link — confirmed visually, no separate desktop layout
+  was needed or added.
 
 `/p/:stableId` and `/u/:stableId` distinguish four states, each rendered
 distinctly:
@@ -360,8 +805,57 @@ the whole org log), a dedicated revoke action in the Publication History UI
 itself (`revokePublication` exists in `features/publications/api.ts`, but
 no screen calls it yet — Publication History stays a pure read-only
 history view by design, matching the spec's read-only scope for this
-screen), the remaining admin screens (member management beyond what
-Organizations already expose), and the real dashboard (KPI tiles, charts).
+screen), and the remaining admin screens (member management beyond what
+Organizations already expose). The Dashboard (see "Dashboard" above) is
+now real but intentionally has no charts/trend lines and no org-wide
+"pending review" KPI — both need a new backend aggregate endpoint to do
+cheaply, which is out of scope for this UI-only phase; see "Dashboard"'s
+"deliberately omitted" notes.
+
+## UI polish pass — complete (Phases 1–6)
+
+This six-phase pass is now closed out. No new domain features or backend
+changes were made in any phase — every change was visual consistency, UX
+clarity, or responsive behavior on top of already-working screens. Summary
+per phase, for reference:
+
+- **Phase 1** — established the design-system token scale (`tokens.css`:
+  spacing, type scale, radii, the status color table) and the shared
+  low-level components (`Button`, `Badge`/`StatusBadge`, `Spinner`,
+  `EmptyState`/`LoadingState`/`ErrorState`, `DescriptionList`, etc.) that
+  every later phase builds on. See "Design system" above.
+- **Phase 2** — Products/Documents list + detail polish: converted the
+  remaining bare spinner/`<p role="alert">` error sites to
+  `LoadingState`/`ErrorState`, unified the Übersicht tabs' key-value layout
+  onto `DescriptionList`, added breadcrumbs to the three main detail/wizard
+  pages.
+- **Phase 3** — Applicability Editor, Publish Wizard, CSV Import wizard:
+  finished the `ErrorState`/`EmptyState` sweep into those screens'
+  internals, extracted the shared `WizardSteps` step indicator, fixed a
+  real horizontal-overflow bug in `RuleFormDrawer`.
+- **Phase 4** — Publication History and Audit UI: unified their detail
+  drawers onto `DescriptionList`, matched their empty-state and
+  "no value" conventions, added a real `--font-mono` token.
+- **Phase 5** — replaced the Dashboard's placeholder with real KPI cards +
+  recent-activity lists built entirely from existing list-endpoint totals
+  (no new backend endpoints), extracting `StatTile` to the design system.
+- **Phase 6 (this phase)** — the public QR-scan pages (`/p/:stableId`,
+  `/u/:stableId`), the one screen in the app that intentionally has no
+  `AppShell`/`Sidebar` and stayed that way: token adoption for its last few
+  hardcoded values, a clearer product-name/section/metadata type hierarchy,
+  44×44px minimum touch targets on every tappable element (verified live at
+  390px), a consistent card treatment across all four states (loading/
+  not-found/empty/error), and a more deliberate footer treatment. Verified
+  against real seeded data (`PumpMaster 400`) at 390px, 430px, and 1024px,
+  confirming no horizontal scroll at either mobile width. See "Public page
+  states" above for the full detail.
+
+Deferred beyond this pass (not UI-polish scope): the per-object "Verlauf"
+placeholders, a Publication History revoke action, member management UI,
+Dashboard charts/trend lines, and the backend gaps called out inline above
+(e.g. a `status` filter on `GET /api/units`, an `objectId` filter on
+`GET /api/audit`) — all documented where they're first mentioned above
+rather than repeated here.
 
 ### Known limitations in the Applicability Editor (documented judgment calls)
 
@@ -392,3 +886,27 @@ Organizations already expose), and the real dashboard (KPI tiles, charts).
   compares against every ACTIVE publication of the same document+language,
   including the revision's own), not a UI bug: you cannot re-publish an
   already-actively-published revision, and the UI surfaces that honestly.
+
+### Phase 3 responsive/UI polish notes
+
+- `RuleFormDrawer.tsx`'s form had a hardcoded `minWidth: "24rem"` (384px)
+  that didn't fit inside `Drawer`'s 420px panel once its 24px×2 padding is
+  subtracted (372px of usable width) — a genuine, pre-existing 12px
+  horizontal overflow inside the drawer at every viewport width, not just
+  narrow ones (confirmed via `drawer.scrollWidth` vs. `clientWidth` in a
+  live browser session, and visually as a thin horizontal scrollbar at the
+  bottom of the panel). Removed the `minWidth`; the form now simply fills
+  the drawer's actual content width, which is what was intended — nothing
+  inside `ScopeFields`/`UnitPicker` needed to change.
+- The CSV Import wizard's mapping step marks `serialNumber`/
+  `productReference` as required with a trailing ` *` on the `Select`
+  label — this predates Phase 3 and is the only place in the app using an
+  asterisk marker (single-field creation dialogs like
+  `CreateProductDialog.tsx` mark required fields with the native HTML
+  `required` attribute only, no visible marker, since every field in those
+  forms is obviously required). Judgment call: kept the `*` because the
+  mapping step is a dense multi-select grid mixing required and optional
+  fields, where a purely-native `required` attribute on a `<select>` isn't
+  visually discoverable — but also added the native `required` attribute
+  to those two `Select`s (previously missing) so the two conventions
+  layer rather than conflict.

@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { Spinner, StatusBadge, Table, type TableColumn } from "../../../design-system";
+import { EmptyState, ErrorState, LoadingState, StatusBadge, Table, type TableColumn } from "../../../design-system";
 import type { PublicationDto } from "../../../lib/api-types";
 import { ApiError } from "../../../lib/api-error";
 import { listPublicationsForDocument } from "../api";
@@ -40,12 +40,17 @@ export function PublicationsTab({ documentId }: PublicationsTabProps) {
     { key: "publishedAt", header: "Veröffentlicht am", render: (p) => new Date(p.publishedAt).toLocaleString("de-DE") },
   ];
 
-  if (loading) return <Spinner centered />;
+  if (loading) return <LoadingState label="Veröffentlichungen werden geladen…" />;
+  if (error) return <ErrorState error={error} fallback="Veröffentlichungen konnten nicht geladen werden." />;
 
   return (
     <div>
-      {error && <p role="alert">{error}</p>}
-      <Table columns={columns} rows={items} rowKey={(p) => p.id} emptyMessage="Keine Veröffentlichungen." />
+      <Table
+        columns={columns}
+        rows={items}
+        rowKey={(p) => p.id}
+        emptyMessage={<EmptyState title="Keine Veröffentlichungen vorhanden" description="Dieses Dokument wurde noch nicht veröffentlicht." />}
+      />
     </div>
   );
 }

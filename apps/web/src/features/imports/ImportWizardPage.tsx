@@ -1,6 +1,19 @@
 import { useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { Badge, Button, PageHeader, Select, Spinner, Table, type TableColumn, useToast } from "../../design-system";
+import {
+  Badge,
+  Button,
+  EmptyState,
+  ErrorState,
+  PageHeader,
+  Select,
+  Spinner,
+  StatTile,
+  Table,
+  type TableColumn,
+  WizardSteps,
+  useToast,
+} from "../../design-system";
 import {
   IMPORT_CANONICAL_FIELDS,
   type ImportCanonicalField,
@@ -197,13 +210,7 @@ export function ImportWizardPage() {
         }
       />
 
-      <ol style={{ display: "flex", gap: "0.5rem", listStyle: "none", padding: 0, marginBottom: "1.5rem", flexWrap: "wrap" }}>
-        {STEPS.map((s, idx) => (
-          <li key={s.key}>
-            <Badge tone={idx === stepIndex ? "info" : idx < stepIndex ? "success" : "neutral"}>{s.label}</Badge>
-          </li>
-        ))}
-      </ol>
+      <WizardSteps steps={STEPS.map((s) => ({ key: s.key, label: s.label.replace(/^\d+\.\s*/, "") }))} currentIndex={stepIndex} />
 
       {step === "file" && (
         <FileStep
@@ -312,7 +319,7 @@ function FileStep({
   return (
     <div>
       <h3>CSV-Datei auswählen</h3>
-      <p style={{ color: "var(--color-text-secondary, #666)" }}>
+      <p style={{ color: "var(--color-text-secondary)" }}>
         Die Datei muss mindestens Spalten für Seriennummer und Produktreferenz enthalten. Im nächsten Schritt können
         Sie die Spaltenzuordnung prüfen und bei Bedarf korrigieren.
       </p>
@@ -328,7 +335,7 @@ function FileStep({
       )}
       {fileError && <p role="alert">{fileError}</p>}
       {previewLoading && <Spinner size={24} />}
-      {previewError && <p role="alert">{previewError}</p>}
+      {previewError && <ErrorState error={previewError} />}
     </div>
   );
 }
@@ -367,7 +374,7 @@ function MappingStep({
           Seriennummer und Produktreferenz manuell einer Spalte zu.
         </p>
       ) : (
-        <p style={{ color: "var(--color-text-secondary, #666)" }}>
+        <p style={{ color: "var(--color-text-secondary)" }}>
           Automatisch erkannte Zuordnung aus den Kopfzeilen Ihrer Datei. Sie können jede Zuordnung ändern —
           Seriennummer und Produktreferenz sind erforderlich.
         </p>
@@ -385,6 +392,7 @@ function MappingStep({
             <Select
               key={field}
               label={`${FIELD_LABELS[field]}${isRequired ? " *" : ""}`}
+              required={isRequired}
               options={headerOptions}
               value={value === undefined || value === null ? "" : String(value)}
               onChange={(e) => {
@@ -395,11 +403,11 @@ function MappingStep({
           );
         })}
       </div>
-      <p style={{ marginTop: "0.75rem", fontSize: "0.85rem", color: "var(--color-text-secondary, #666)" }}>
+      <p style={{ marginTop: "0.75rem", fontSize: "0.85rem", color: "var(--color-text-secondary)" }}>
         * Pflichtfeld. Fehlt eine erforderliche Zuordnung, meldet der Server dies beim nächsten Schritt.
       </p>
       {previewLoading && <Spinner size={24} />}
-      {previewError && <p role="alert">{previewError}</p>}
+      {previewError && <ErrorState error={previewError} />}
     </div>
   );
 }
@@ -474,7 +482,7 @@ function ReviewStep({ preview }: { preview: ImportPreviewResponseDto }) {
       {preview.invalidRows.length > 0 && (
         <>
           <h4>Fehlerhafte Zeilen{remainingErrors > 0 ? ` (erste ${ERROR_LIST_CAP} von ${preview.invalidRows.length})` : ""}</h4>
-          <ul style={{ maxHeight: "16rem", overflowY: "auto", border: "1px solid var(--color-border, #ddd)", padding: "0.5rem 1rem", borderRadius: 4 }}>
+          <ul style={{ maxHeight: "16rem", overflowY: "auto", border: "1px solid var(--color-border)", padding: "0.5rem 1rem", borderRadius: 4 }}>
             {shownErrors.map((r) => (
               <li key={r.row}>
                 Zeile {r.row}: {r.errors.join(", ")}
@@ -488,19 +496,13 @@ function ReviewStep({ preview }: { preview: ImportPreviewResponseDto }) {
       <h4 style={{ marginTop: "1.5rem" }}>
         Beispiel gültiger Zeilen{remainingValid > 0 ? ` (erste ${VALID_SAMPLE_CAP} von ${preview.validRows.length})` : ""}
       </h4>
-      <Table columns={validColumns} rows={sampleValid} rowKey={(r) => String(r.line)} emptyMessage="Keine gültigen Zeilen." />
+      <Table
+        columns={validColumns}
+        rows={sampleValid}
+        rowKey={(r) => String(r.line)}
+        emptyMessage={<EmptyState title="Keine gültigen Zeilen." />}
+      />
       {remainingValid > 0 && <p>… und {remainingValid} weitere gültige Zeilen (nicht einzeln angezeigt).</p>}
-    </div>
-  );
-}
-
-function StatTile({ label, value, tone }: { label: string; value: number; tone: "success" | "warning" | "danger" | "neutral" }) {
-  return (
-    <div>
-      <div style={{ fontSize: "1.75rem", fontWeight: 700 }}>{value.toLocaleString("de-DE")}</div>
-      <div>
-        <Badge tone={tone}>{label}</Badge>
-      </div>
     </div>
   );
 }
@@ -555,11 +557,11 @@ function CommitStep({
           </>
         )}
       </p>
-      <p style={{ color: "var(--color-text-secondary, #666)" }}>
+      <p style={{ color: "var(--color-text-secondary)" }}>
         Vor diesem Klick wurde noch nichts in der Datenbank gespeichert — dieser Schritt importiert genau die zuvor
         geprüfte Menge, nicht mehr und nicht weniger.
       </p>
-      {commitError && <p role="alert">{commitError}</p>}
+      {commitError && <ErrorState error={commitError} onRetry={onCommit} retryLabel="Erneut versuchen" />}
       <Button onClick={onCommit} disabled={committing || preview.validRows.length === 0} variant="primary">
         {committing ? "Wird importiert…" : "Jetzt importieren"}
       </Button>

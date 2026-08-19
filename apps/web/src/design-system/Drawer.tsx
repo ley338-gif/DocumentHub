@@ -1,5 +1,6 @@
 import type { ReactNode } from "react";
-import { useEffect } from "react";
+import { useEffect, useRef } from "react";
+import { useFocusTrap } from "./useFocusTrap";
 import styles from "./Drawer.module.css";
 
 export interface DrawerProps {
@@ -10,6 +11,9 @@ export interface DrawerProps {
 }
 
 export function Drawer({ open, onClose, title, children }: DrawerProps) {
+  const drawerRef = useRef<HTMLDivElement>(null);
+  useFocusTrap(open, drawerRef);
+
   useEffect(() => {
     if (!open) return;
     const onKeyDown = (e: KeyboardEvent) => {
@@ -24,10 +28,12 @@ export function Drawer({ open, onClose, title, children }: DrawerProps) {
   return (
     <div className={styles.overlay} onClick={onClose} role="presentation">
       <div
+        ref={drawerRef}
         className={styles.drawer}
         role="dialog"
         aria-modal="true"
         aria-label={typeof title === "string" ? title : undefined}
+        tabIndex={-1}
         onClick={(e) => e.stopPropagation()}
       >
         {title && (

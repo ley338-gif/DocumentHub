@@ -1,6 +1,16 @@
 import { useEffect, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
-import { Badge, Button, PageHeader, Spinner, useToast } from "../../design-system";
+import {
+  Badge,
+  Button,
+  DescriptionList,
+  DescriptionItem,
+  ErrorState,
+  LoadingState,
+  PageHeader,
+  WizardSteps,
+  useToast,
+} from "../../design-system";
 import type { ApplicabilityRuleDto, DocumentDto, DocumentRevisionDto, PublishPreviewDto } from "../../lib/api-types";
 import { ApiError } from "../../lib/api-error";
 import { languageLabel } from "../../lib/format";
@@ -98,13 +108,13 @@ export function PublishWizardPage() {
     }
   }
 
-  if (!documentId || !revisionId) return <p role="alert">Ungültiger Aufruf.</p>;
-  if (loading) return <Spinner centered size={32} />;
+  if (!documentId || !revisionId) return <ErrorState error="Ungültiger Aufruf." />;
+  if (loading) return <LoadingState label="Wird geladen…" />;
   if (loadError || !doc || !revision) {
     return (
       <div>
-        <p role="alert">{loadError ?? "Nicht gefunden."}</p>
-        <Button variant="secondary" onClick={() => navigate(`/app/documents/${documentId}`)}>
+        <ErrorState error={loadError} fallback="Nicht gefunden." />
+        <Button variant="secondary" onClick={() => navigate(`/app/documents/${documentId}`)} style={{ marginTop: "1rem" }}>
           Zurück
         </Button>
       </div>
@@ -151,6 +161,11 @@ export function PublishWizardPage() {
       <PageHeader
         title="Revision veröffentlichen"
         subtitle={`${doc.name} · ${revision.revision} (${languageLabel(revision.language)})`}
+        breadcrumbs={[
+          { label: "Dokumente", to: "/app/documents" },
+          { label: doc.name, to: `/app/documents/${documentId}` },
+          { label: "Revision veröffentlichen" },
+        ]}
         actions={
           <Button variant="secondary" onClick={() => navigate(`/app/documents/${documentId}`)}>
             Abbrechen
@@ -158,38 +173,25 @@ export function PublishWizardPage() {
         }
       />
 
-      <ol style={{ display: "flex", gap: "0.5rem", listStyle: "none", padding: 0, marginBottom: "1.5rem", flexWrap: "wrap" }}>
-        {STEPS.map((s, idx) => (
-          <li key={s.key}>
-            <Badge tone={idx === stepIndex ? "info" : idx < stepIndex ? "success" : "neutral"}>{s.label}</Badge>
-          </li>
-        ))}
-      </ol>
+      <WizardSteps steps={STEPS.map((s) => ({ key: s.key, label: s.label.replace(/^\d+\.\s*/, "") }))} currentIndex={stepIndex} />
 
       {step === "revision" && (
         <div>
           <h3>Zu veröffentlichende Revision</h3>
-          <dl>
-            <dt>Dokument</dt>
-            <dd>{doc.name} ({doc.documentType})</dd>
-            <dt>Revision</dt>
-            <dd>{revision.revision}</dd>
-            <dt>Sprache</dt>
-            <dd>{languageLabel(revision.language)}</dd>
-            <dt>Status</dt>
-            <dd>
-              <Badge tone="success">{revision.status}</Badge>
-            </dd>
-            <dt>Datei</dt>
-            <dd>{revision.originalFilename}</dd>
-          </dl>
+          <DescriptionList>
+            <DescriptionItem label="Dokument" value={`${doc.name} (${doc.documentType})`} />
+            <DescriptionItem label="Revision" value={revision.revision} />
+            <DescriptionItem label="Sprache" value={languageLabel(revision.language)} />
+            <DescriptionItem label="Status" value={<Badge tone="success">{revision.status}</Badge>} />
+            <DescriptionItem label="Datei" value={revision.originalFilename} />
+          </DescriptionList>
         </div>
       )}
 
       {step === "applicability" && (
         <div>
           <h3>Anwendbarkeitsregeln dieser Revision</h3>
-          <p style={{ color: "var(--color-text-secondary, #666)" }}>
+          <p style={{ color: "var(--color-text-secondary)" }}>
             Nur lesend — um Regeln zu ändern, brechen Sie ab und wechseln Sie zum Tab „Anwendbarkeit“ des Dokuments.
           </p>
           {rules.length === 0 && <p>Keine Anwendbarkeitsregeln (die Revision gilt dann uneingeschränkt).</p>}
@@ -207,8 +209,8 @@ export function PublishWizardPage() {
       {step === "impact" && (
         <div>
           <h3>Auswirkung</h3>
-          {previewLoading && <Spinner size={28} />}
-          {previewError && <p role="alert">{previewError}</p>}
+          {previewLoading && <LoadingState label="Vorschau wird geladen…" />}
+          {previewError && <ErrorState error={previewError} onRetry={() => setPreviewFetchToken((t) => t + 1)} />}
           {preview && (
             <>
               <p style={{ fontSize: "1.1rem" }}>
@@ -232,8 +234,8 @@ export function PublishWizardPage() {
       {step === "conflicts" && (
         <div>
           <h3>Konflikte</h3>
-          {previewLoading && <Spinner size={28} />}
-          {previewError && <p role="alert">{previewError}</p>}
+          {previewLoading && <LoadingState label="Vorschau wird geladen…" />}
+          {previewError && <ErrorState error={previewError} onRetry={() => setPreviewFetchToken((t) => t + 1)} />}
           {preview && preview.conflicts.length === 0 && (
             <p>
               <Badge tone="success">Keine Konflikte</Badge> — diese Revision kann veröffentlicht werden, sofern sich
@@ -262,7 +264,7 @@ export function PublishWizardPage() {
                 {languageLabel(revision.language)}) wird jetzt veröffentlicht.
               </p>
               {hasRealConflicts && (
-                <p role="alert" style={{ color: "var(--color-danger, #d92d20)", fontWeight: 600 }}>
+                <p role="alert" style={{ color: "var(--color-danger-text)", fontWeight: 600 }}>
                   Veröffentlichung blockiert: Es bestehen Konflikte laut letzter Vorschau (Schritt 4). Beheben Sie die
                   Konflikte, bevor Sie erneut versuchen.
                 </p>

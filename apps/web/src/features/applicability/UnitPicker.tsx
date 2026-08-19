@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { Badge, Button, Input, Pagination, Spinner, Table, type TableColumn } from "../../design-system";
+import { Badge, Button, ErrorState, Input, Pagination, Spinner, Table, type TableColumn } from "../../design-system";
 import type { Unit } from "../../lib/api-types";
 import { usePaginated } from "../../lib/use-paginated";
 import { listUnits } from "../products/api";
@@ -64,7 +64,7 @@ export function UnitPicker({ productId, unitId, unitSerialNumber, onChange }: Un
           </Button>
         </div>
       ) : (
-        <p style={{ margin: "0 0 0.5rem", fontSize: "0.8rem", color: "var(--color-text-secondary, #666)" }}>
+        <p style={{ margin: "0 0 0.5rem", fontSize: "0.8rem", color: "var(--color-text-secondary)" }}>
           Keine Einheit ausgewählt (keine Einschränkung auf eine einzelne Einheit).
         </p>
       )}
@@ -76,7 +76,7 @@ export function UnitPicker({ productId, unitId, unitSerialNumber, onChange }: Un
       )}
 
       {browsing && (
-        <div style={{ border: "1px solid var(--color-border, #ddd)", borderRadius: 8, padding: "0.75rem", marginTop: "0.5rem" }}>
+        <div style={{ border: "1px solid var(--color-border)", borderRadius: 8, padding: "0.75rem", marginTop: "0.5rem" }}>
           <div style={{ display: "flex", gap: "0.5rem", alignItems: "flex-end", marginBottom: "0.5rem" }}>
             <Input
               label="Exakte Seriennummer (optional)"
@@ -89,7 +89,7 @@ export function UnitPicker({ productId, unitId, unitSerialNumber, onChange }: Un
             </Button>
           </div>
           {loading && <Spinner size={24} />}
-          {error && <p role="alert">{error}</p>}
+          {error && <ErrorState error={error} />}
           {!loading && !error && (
             <>
               <Table

@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { Button, Dialog, Input, Select, StatusBadge, Table, type TableColumn, useToast } from "../../../design-system";
+import { Button, Dialog, EmptyState, Input, Select, StatusBadge, Table, type TableColumn, useToast } from "../../../design-system";
 import type { ProductVariant } from "../../../lib/api-types";
 import { ApiError } from "../../../lib/api-error";
 import { usePaginated } from "../../../lib/use-paginated";
@@ -107,7 +107,22 @@ export function VariantsTab({ productId, canWrite }: VariantsTabProps) {
           <Button onClick={openCreate}>Neue Variante</Button>
         </div>
       )}
-      <Table columns={columns} rows={items} rowKey={(v) => v.id} emptyMessage={loading ? "Lädt…" : "Keine Varianten."} />
+      <Table
+        columns={columns}
+        rows={items}
+        rowKey={(v) => v.id}
+        emptyMessage={
+          loading ? (
+            "Lädt…"
+          ) : (
+            <EmptyState
+              title="Keine Varianten vorhanden"
+              description="Legen Sie eine Variante an, um Einheiten dieses Produkts zu unterscheiden."
+              action={canWrite ? <Button onClick={openCreate}>Neue Variante</Button> : undefined}
+            />
+          )
+        }
+      />
 
       <Dialog open={dialogOpen} onClose={() => setDialogOpen(false)} title={editing ? "Variante bearbeiten" : "Neue Variante"}>
         <form onSubmit={handleSubmit} style={{ display: "flex", flexDirection: "column", gap: "0.75rem", minWidth: "24rem" }}>
