@@ -60,6 +60,18 @@ persisted by either call. See
 semantics (partial overrides, out-of-range indices ignored rather than
 throwing, explicit un-mapping).
 
+Headers are available even when `preview` REJECTS the file for missing a
+required column (`serialNumber`/`productReference` unmapped): the
+`FILE_VALIDATION_FAILED` error's `details` includes `{headers,
+columnMapping, unknownColumns}` — the same shape the success response
+uses. This exists so a mapping-review UI never has to re-parse the CSV's
+header row itself just to let the user fix a bad mapping; doing so client-
+side would risk disagreeing with this service's own CSV parsing (e.g. a
+naive `line.split(",")` mis-splits a quoted header cell containing a
+comma, where `parseCsvText` handles it correctly) — exactly the kind of
+drift this project avoids elsewhere by keeping one implementation as the
+source of truth. See `csv-import.e2e-spec.ts`'s quoted-header test.
+
 ### Reference resolution
 
 - **`productReference`**: tried against `Product.stableId` first (exact

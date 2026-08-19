@@ -135,6 +135,11 @@ describe("CSV unit import (spec §33-35)", () => {
     const withoutMapping = await uploadCsv(editorToken, orgId, csv);
     expect(withoutMapping.status).toBe(400);
     expect(withoutMapping.body.error.code).toBe("FILE_VALIDATION_FAILED");
+    // Even on rejection, the raw headers are attached so a mapping-review UI
+    // step never has to re-parse the CSV itself (and risk disagreeing with
+    // this service's own parsing of quoted/escaped header cells).
+    expect(withoutMapping.body.error.details.headers).toEqual(["Col A", "Col B"]);
+    expect(withoutMapping.body.error.details.columnMapping).toEqual({});
 
     const withMapping = await request(http)
       .post("/api/imports/units/preview")
@@ -159,6 +164,19 @@ describe("CSV unit import (spec §33-35)", () => {
       where: { organizationId_serialNumber: { organizationId: orgId, serialNumber: "SN-OVERRIDE-000001" } },
     });
     expect(unit.productId).toBe(productId);
+  });
+
+  it("a rejection's attached headers reflect real CSV parsing (quoted header containing a comma), not a naive comma-split", async () => {
+    // A quoted header cell containing a literal comma — a naive client-side
+    // `line.split(",")` would misparse this into 3 cells instead of 2. The
+    // service's real parseCsvText handles it correctly, and that's exactly
+    // what gets attached to the rejection error for a mapping-review UI to
+    // render — proving the UI never has to (and must not) re-implement CSV
+    // parsing itself.
+    const csv = ['"Ref, with comma",Other', "unmapped-serial,unmapped-product"].join("\n");
+    const res = await uploadCsv(editorToken, orgId, csv);
+    expect(res.status).toBe(400);
+    expect(res.body.error.details.headers).toEqual(["Ref, with comma", "Other"]);
   });
 
   it("an override corrects a misdetected mapping even when both headers look auto-detectable", async () => {
