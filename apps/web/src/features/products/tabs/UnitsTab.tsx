@@ -1,8 +1,8 @@
 import { useEffect, useState } from "react";
-import { Button, Dialog, EmptyState, Input, Pagination, Select, StatusBadge, Table, type TableColumn, useToast } from "../../../design-system";
+import { Button, Dialog, EmptyState, ErrorState, Input, Pagination, Select, Spinner, StatusBadge, Table, type TableColumn, useToast } from "../../../design-system";
 import type { Batch, ProductVariant, Unit } from "../../../lib/api-types";
 import { usePaginated } from "../../../lib/use-paginated";
-import { createUnit, listBatches, listUnits, listVariants } from "../api";
+import { createUnit, fetchQrImageUrl, listBatches, listUnits, listVariants } from "../api";
 import { ManageBatchesDialog } from "../ManageBatchesDialog";
 import { ApiError } from "../../../lib/api-error";
 
@@ -21,6 +21,7 @@ export function UnitsTab({ productId, canWrite }: UnitsTabProps) {
   const [batches, setBatches] = useState<Batch[]>([]);
   const [batchesOpen, setBatchesOpen] = useState(false);
   const [createOpen, setCreateOpen] = useState(false);
+  const [qrUnit, setQrUnit] = useState<Unit | null>(null);
 
   function reloadRefs() {
     listVariants(productId, { pageSize: 100 }).then((r) => setVariants(r.items)).catch(() => setVariants([]));
@@ -40,6 +41,15 @@ export function UnitsTab({ productId, canWrite }: UnitsTabProps) {
     { key: "variant", header: "Variante", render: (u) => variantName(u.variantId) },
     { key: "batch", header: "Charge", render: (u) => batchName(u.batchId) },
     { key: "status", header: "Status", render: (u) => <StatusBadge status={u.status} /> },
+    {
+      key: "qr",
+      header: "Öffentlicher Zugriff",
+      render: (u) => (
+        <Button variant="outline" size="sm" onClick={() => setQrUnit(u)}>
+          QR-Code
+        </Button>
+      ),
+    },
   ];
 
   return (
@@ -89,7 +99,55 @@ export function UnitsTab({ productId, canWrite }: UnitsTabProps) {
           reload();
         }}
       />
+
+      <UnitQrDialog unit={qrUnit} onClose={() => setQrUnit(null)} />
     </div>
+  );
+}
+
+function UnitQrDialog({ unit, onClose }: { unit: Unit | null; onClose: () => void }) {
+  const [qrUrl, setQrUrl] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  const publicUrl = unit ? `${window.location.origin}/u/${unit.stableId}` : "";
+
+  useEffect(() => {
+    if (!unit) return;
+    let objectUrl: string | null = null;
+    let cancelled = false;
+    setQrUrl(null);
+    setError(null);
+    fetchQrImageUrl("units", unit.id)
+      .then((url) => {
+        if (cancelled) {
+          URL.revokeObjectURL(url);
+          return;
+        }
+        objectUrl = url;
+        setQrUrl(url);
+      })
+      .catch((err) => setError(err instanceof Error ? err.message : "QR-Code konnte nicht geladen werden."));
+    return () => {
+      cancelled = true;
+      if (objectUrl) URL.revokeObjectURL(objectUrl);
+    };
+  }, [unit]);
+
+  return (
+    <Dialog open={!!unit} onClose={onClose} title={unit ? `QR-Code — ${unit.serialNumber}` : "QR-Code"}>
+      {unit && (
+        <div style={{ display: "flex", flexDirection: "column", gap: "1rem", minWidth: "20rem" }}>
+          <div>
+            <span style={{ fontWeight: 600 }}>Öffentliche URL: </span>
+            <a href={publicUrl} target="_blank" rel="noreferrer">
+              {publicUrl}
+            </a>
+          </div>
+          {error && <ErrorState error={error} fallback="QR-Code konnte nicht geladen werden." />}
+          {!qrUrl && !error && <Spinner />}
+          {qrUrl && <img src={qrUrl} alt={`QR-Code für Einheit ${unit.serialNumber}`} width={200} height={200} />}
+        </div>
+      )}
+    </Dialog>
   );
 }
 

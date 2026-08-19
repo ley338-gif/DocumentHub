@@ -1,9 +1,12 @@
 import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { DescriptionItem, DescriptionList, Drawer, ErrorState, LoadingState, StatusBadge } from "../../design-system";
+import { Button, DescriptionItem, DescriptionList, Dialog, Drawer, ErrorState, LoadingState, StatusBadge, useToast } from "../../design-system";
 import type { PublicationDto } from "../../lib/api-types";
+import { ApiError } from "../../lib/api-error";
 import { formatFileSize, languageLabel } from "../../lib/format";
-import { getPublication } from "./api";
+import { useCurrentRole } from "../auth/useCurrentRole";
+import { hasRole } from "../../lib/roles";
+import { getPublication, revokePublication } from "./api";
 import { formatRuleScope, formatRuleValidity } from "./ruleFormat";
 import styles from "./PublicationDetailDrawer.module.css";
 
@@ -18,6 +21,7 @@ function notApplicable(text: string) {
 export interface PublicationDetailDrawerProps {
   publicationId: string | null;
   onClose: () => void;
+  onRevoked?: () => void;
 }
 
 /**
@@ -27,11 +31,15 @@ export interface PublicationDetailDrawerProps {
  * the "never fetch live Product/Document data" invariant this drawer must
  * also honor.
  */
-export function PublicationDetailDrawer({ publicationId, onClose }: PublicationDetailDrawerProps) {
+export function PublicationDetailDrawer({ publicationId, onClose, onRevoked }: PublicationDetailDrawerProps) {
   const navigate = useNavigate();
+  const toast = useToast();
+  const role = useCurrentRole();
   const [publication, setPublication] = useState<PublicationDto | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<unknown>(null);
+  const [revoking, setRevoking] = useState(false);
+  const [confirmOpen, setConfirmOpen] = useState(false);
 
   useEffect(() => {
     if (!publicationId) {
@@ -58,6 +66,26 @@ export function PublicationDetailDrawer({ publicationId, onClose }: PublicationD
 
   const snapshot = publication?.snapshot;
 
+  async function handleRevoke() {
+    if (!publication) return;
+    setRevoking(true);
+    try {
+      await revokePublication(publication.id);
+      // The PATCH .../revoke response is a bare Prisma row (no snapshot or
+      // resolved actor names) — re-fetch via the enriched GET to keep the
+      // drawer showing the full detail instead of blanking those fields.
+      const refreshed = await getPublication(publication.id);
+      setPublication(refreshed);
+      toast.show({ message: "Veröffentlichung widerrufen.", tone: "success" });
+      onRevoked?.();
+    } catch (err) {
+      toast.show({ message: err instanceof ApiError ? err.userMessage : "Widerruf fehlgeschlagen.", tone: "danger" });
+    } finally {
+      setRevoking(false);
+      setConfirmOpen(false);
+    }
+  }
+
   return (
     <Drawer open={Boolean(publicationId)} onClose={onClose} title="Veröffentlichung">
       {loading && <LoadingState label="Veröffentlichung wird geladen…" />}
@@ -67,6 +95,13 @@ export function PublicationDetailDrawer({ publicationId, onClose }: PublicationD
           <section>
             <h3>Status</h3>
             <StatusBadge status={publication.status} />
+            {publication.status === "ACTIVE" && hasRole(role, "PUBLISHER") && (
+              <div style={{ marginTop: "0.75rem" }}>
+                <Button variant="danger" size="sm" onClick={() => setConfirmOpen(true)}>
+                  Widerrufen
+                </Button>
+              </div>
+            )}
           </section>
 
           <section>
@@ -148,6 +183,23 @@ export function PublicationDetailDrawer({ publicationId, onClose }: PublicationD
           </section>
         </div>
       )}
+
+      <Dialog open={confirmOpen} onClose={() => setConfirmOpen(false)} title="Veröffentlichung widerrufen">
+        <div style={{ display: "flex", flexDirection: "column", gap: "1rem", minWidth: "20rem" }}>
+          <p>
+            Diese Veröffentlichung wirklich widerrufen? Die öffentliche Seite zeigt dieses Dokument danach sofort
+            nicht mehr an. Dieser Schritt kann nicht rückgängig gemacht werden.
+          </p>
+          <div style={{ display: "flex", gap: "0.5rem", justifyContent: "flex-end" }}>
+            <Button variant="secondary" onClick={() => setConfirmOpen(false)} disabled={revoking}>
+              Abbrechen
+            </Button>
+            <Button variant="danger" onClick={handleRevoke} disabled={revoking}>
+              {revoking ? "Wird widerrufen…" : "Widerrufen"}
+            </Button>
+          </div>
+        </div>
+      </Dialog>
     </Drawer>
   );
 }
