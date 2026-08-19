@@ -683,6 +683,74 @@ and the client.
 
 ## Public page states
 
+**Phase 6 (final phase of this UI polish pass)** re-audited this screen —
+the one page in the app with no `AppShell`/`Sidebar`, built mobile-first
+from this project's very first frontend phase, deliberately independent of
+the authenticated shell and left that way here too. No structural change:
+same four states, same standalone frame, same anonymous `/p`/`/u` API
+calls (`api.ts`'s `anonymous: true`, confirmed still skipping
+`Authorization`/`X-Organization-Id`). What changed, all in
+`features/public/PublicPage.module.css` plus the two files below:
+
+- **Token adoption**: three remaining hardcoded values replaced with the
+  Phase 1 scale — `.languageChip`'s `0.5rem 0.875rem` padding →
+  `var(--space-2) var(--space-4)`, `.pubMeta`'s `0.15rem` margin →
+  `var(--space-1)`. (`.brandIcon`'s `28px` and `.stateIcon`'s `48px` were
+  deliberately left as literal pixel sizes — they're fixed icon-badge
+  dimensions with no matching entry on the spacing scale, not a
+  spacing/layout value that tokenizing would make more consistent.)
+- **Typography hierarchy**: the product/unit name (`.productName`) is now
+  `--font-size-2xl` (was `-xl`) so it unambiguously reads as the page's one
+  primary heading over the section titles (`--font-size-md`) and metadata
+  (`--font-size-sm`/`-xs`) below it, matching the reference mockups'
+  emphasis. Each document row's name (`.pubName`) moved from
+  `font-weight-medium`/`font-size-base` to `-semibold`/`-md` so it's clearly
+  the most prominent element in the row, with type/revision/size staying on
+  one small muted `.pubMeta` line beneath it (language isn't repeated per
+  row since the list is already filtered to the selected language above the
+  list — a deliberate difference from the admin table-row convention, which
+  has no such filter and shows language directly).
+- **Touch targets**: the language-selector chips and the "Öffnen"/
+  "Herunterladen" buttons were measured in a live 390px session before this
+  pass — routinely under 36px tall (the shared `Button` `sm` size, tuned for
+  dense admin tables). Both now hit a real 44×44px minimum: `.languageChip`
+  gained `min-height: 44px` with flex centering, and the publication row
+  actions moved off the shared `Button` `sm`/`md` classes onto a new
+  page-local `.pubActionButton` (`min-height`/`min-width: 44px`) — added
+  locally rather than changing `Button.module.css`'s `sm` globally, since
+  `sm` is used throughout the admin table rows this phase must not touch.
+  Verified via `getBoundingClientRect()` in a live browser session at
+  390px: all four tappable elements measured exactly 44px tall.
+- **Loading state now uses the same card treatment as the other three.**
+  Previously `PublicProductPage`/`PublicUnitPage` rendered a bare
+  `<Spinner centered />` for `status === "loading"` while
+  not-found/empty/error all used the `.stateWrap` card — four states, three
+  different containers plus one bare element. Added
+  `LoadingPublicPageState` to `PublicPageStates.tsx` (same `.stateWrap`
+  card, a `Spinner` plus "Wird geladen…" text) so all four states now share
+  one consistent card/container language.
+- **Footer** (`.footer`, "Document Hub · Dokumente immer aktuell.") gained
+  a `border-top` and slightly more vertical padding so it reads as a
+  deliberate closing element separated from the document-list card above
+  it, rather than text that happened to be at the bottom of the page.
+
+**Verified responsive at the three required widths** (real browser session
+against the live dev server, real seeded data — `PumpMaster 400`,
+`stableId seed-product-pumpmaster-400`, and one of its units — not just
+static CSS review):
+
+- **390px**: `document.documentElement.scrollWidth` === `window.innerWidth`
+  (390 === 390, no horizontal scroll); all four tappable elements
+  (`Deutsch`/`English` chips, `Öffnen`/`Herunterladen`) measured exactly
+  44px tall via `getBoundingClientRect()`.
+- **430px**: same no-overflow check (430 === 430); unit page
+  (`/u/:stableId`, "Seriennummer" metadata row) confirmed visually
+  alongside the product page.
+- **1024px**: the existing `max-width: 720px` centered container (already
+  in place pre-Phase-6) keeps the card content from stretching edge-to-edge
+  on a laptop-opened link — confirmed visually, no separate desktop layout
+  was needed or added.
+
 `/p/:stableId` and `/u/:stableId` distinguish four states, each rendered
 distinctly:
 
@@ -743,6 +811,51 @@ now real but intentionally has no charts/trend lines and no org-wide
 "pending review" KPI — both need a new backend aggregate endpoint to do
 cheaply, which is out of scope for this UI-only phase; see "Dashboard"'s
 "deliberately omitted" notes.
+
+## UI polish pass — complete (Phases 1–6)
+
+This six-phase pass is now closed out. No new domain features or backend
+changes were made in any phase — every change was visual consistency, UX
+clarity, or responsive behavior on top of already-working screens. Summary
+per phase, for reference:
+
+- **Phase 1** — established the design-system token scale (`tokens.css`:
+  spacing, type scale, radii, the status color table) and the shared
+  low-level components (`Button`, `Badge`/`StatusBadge`, `Spinner`,
+  `EmptyState`/`LoadingState`/`ErrorState`, `DescriptionList`, etc.) that
+  every later phase builds on. See "Design system" above.
+- **Phase 2** — Products/Documents list + detail polish: converted the
+  remaining bare spinner/`<p role="alert">` error sites to
+  `LoadingState`/`ErrorState`, unified the Übersicht tabs' key-value layout
+  onto `DescriptionList`, added breadcrumbs to the three main detail/wizard
+  pages.
+- **Phase 3** — Applicability Editor, Publish Wizard, CSV Import wizard:
+  finished the `ErrorState`/`EmptyState` sweep into those screens'
+  internals, extracted the shared `WizardSteps` step indicator, fixed a
+  real horizontal-overflow bug in `RuleFormDrawer`.
+- **Phase 4** — Publication History and Audit UI: unified their detail
+  drawers onto `DescriptionList`, matched their empty-state and
+  "no value" conventions, added a real `--font-mono` token.
+- **Phase 5** — replaced the Dashboard's placeholder with real KPI cards +
+  recent-activity lists built entirely from existing list-endpoint totals
+  (no new backend endpoints), extracting `StatTile` to the design system.
+- **Phase 6 (this phase)** — the public QR-scan pages (`/p/:stableId`,
+  `/u/:stableId`), the one screen in the app that intentionally has no
+  `AppShell`/`Sidebar` and stayed that way: token adoption for its last few
+  hardcoded values, a clearer product-name/section/metadata type hierarchy,
+  44×44px minimum touch targets on every tappable element (verified live at
+  390px), a consistent card treatment across all four states (loading/
+  not-found/empty/error), and a more deliberate footer treatment. Verified
+  against real seeded data (`PumpMaster 400`) at 390px, 430px, and 1024px,
+  confirming no horizontal scroll at either mobile width. See "Public page
+  states" above for the full detail.
+
+Deferred beyond this pass (not UI-polish scope): the per-object "Verlauf"
+placeholders, a Publication History revoke action, member management UI,
+Dashboard charts/trend lines, and the backend gaps called out inline above
+(e.g. a `status` filter on `GET /api/units`, an `objectId` filter on
+`GET /api/audit`) — all documented where they're first mentioned above
+rather than repeated here.
 
 ### Known limitations in the Applicability Editor (documented judgment calls)
 
