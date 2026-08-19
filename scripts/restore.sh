@@ -33,22 +33,29 @@ POSTGRES_USER="${POSTGRES_USER:-document_hub}"
 POSTGRES_DB="${POSTGRES_DB:-document_hub}"
 
 echo "==> Verifying backup file integrity against manifest..."
-node -e '
-const fs = require("fs");
-const crypto = require("crypto");
-const dir = process.argv[1];
-const manifest = JSON.parse(fs.readFileSync(`${dir}/manifest.json`, "utf8"));
-for (const [key, entry] of Object.entries(manifest.files)) {
-  if (entry.sha256 === "n/a") continue;
-  const path = `${dir}/${entry.name}`;
-  const actual = crypto.createHash("sha256").update(fs.readFileSync(path)).digest("hex");
-  if (actual !== entry.sha256) {
-    console.error(`SHA-256 mismatch for ${key} (${entry.name}): expected ${entry.sha256}, got ${actual}`);
-    process.exit(1);
-  }
-  console.log(`  OK  ${entry.name}`);
-}
-' "$BACKUP_DIR"
+# Pure bash/sha256sum — no Node required on the host. manifest.json's shape
+# is controlled entirely by backup.sh (one "sha256": "<hex>" line per file,
+# in file-declaration order matching the two lines below), so a plain grep
+# is reliable here without needing a real JSON parser on the host.
+manifest_hashes=$(grep -o '"sha256": *"[a-f0-9]*"' "$BACKUP_DIR/manifest.json" | grep -o '[a-f0-9]\{64\}')
+db_expected=$(echo "$manifest_hashes" | sed -n '1p')
+storage_expected=$(echo "$manifest_hashes" | sed -n '2p')
+
+db_actual=$(sha256sum "$BACKUP_DIR/database.dump" | cut -d' ' -f1)
+if [ "$db_actual" != "$db_expected" ]; then
+  echo "SHA-256 mismatch for database.dump: expected $db_expected, got $db_actual" >&2
+  exit 1
+fi
+echo "  OK  database.dump"
+
+if [ -f "$BACKUP_DIR/storage.tar.gz" ] && [ -n "${storage_expected:-}" ] && [ "$storage_expected" != "" ]; then
+  storage_actual=$(sha256sum "$BACKUP_DIR/storage.tar.gz" | cut -d' ' -f1)
+  if [ "$storage_actual" != "$storage_expected" ]; then
+    echo "SHA-256 mismatch for storage.tar.gz: expected $storage_expected, got $storage_actual" >&2
+    exit 1
+  fi
+  echo "  OK  storage.tar.gz"
+fi
 
 echo "==> Restoring PostgreSQL database '$POSTGRES_DB'..."
 # --clean --if-exists drops existing objects before recreating them, so
