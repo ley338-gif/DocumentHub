@@ -8,7 +8,11 @@ import { STORAGE_SERVICE, StorageService } from "../storage/storage.service";
 import { CreateRevisionMetaDto } from "./dto/document-dtos";
 import { RevisionStatus } from "@prisma/client";
 
-const MAX_FILE_SIZE_BYTES = 100 * 1024 * 1024; // 100MB
+// Exported so RevisionsController can pass the same limit to Multer's own
+// `limits.fileSize` — that rejects an oversized upload while it's still
+// streaming in, instead of buffering the whole thing into memory first and
+// only then hitting this service's own check below.
+export const MAX_FILE_SIZE_BYTES = 100 * 1024 * 1024; // 100MB
 const ALLOWED_MIME_TYPES = new Set(["application/pdf"]);
 
 const TRANSITIONS: Record<RevisionStatus, RevisionStatus[]> = {
