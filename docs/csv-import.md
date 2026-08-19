@@ -40,6 +40,26 @@ export their existing ERP unit list unmodified and just have the extra
 columns skipped. Blank lines are skipped, not treated as errors. Values are
 trimmed; blank cells are treated as "not provided" for optional fields.
 
+### Editable mapping (not just auto-detection)
+
+`POST /api/imports/units/preview` accepts an optional `columnMapping`
+multipart field: a JSON object of canonical field name → column index
+(0-based), e.g. `{"serialNumber": 2, "productReference": 0}`. Any field
+you don't mention keeps its auto-detected value; a `null` (or empty
+string) value for a field explicitly un-maps it even if auto-detection
+would have matched something. This exists specifically so a UI can offer
+a real "review and correct the column mapping" step — pre-filled with
+`headers` (the raw header row) and `columnMapping` (what was actually
+used) from the *previous* preview call — rather than either a hardcoded
+mapping the user can't fix, or forcing them to rename their spreadsheet's
+columns to match our aliases exactly. Re-calling `preview` with a
+corrected mapping re-validates every row from scratch; nothing is
+persisted by either call. See
+`csv-parser.ts`'s `mapHeaders`/`detectHeaders` and
+`csv-parser.spec.ts`/`csv-import.e2e-spec.ts` for the exact override
+semantics (partial overrides, out-of-range indices ignored rather than
+throwing, explicit un-mapping).
+
 ### Reference resolution
 
 - **`productReference`**: tried against `Product.stableId` first (exact

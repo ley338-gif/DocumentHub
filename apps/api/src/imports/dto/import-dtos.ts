@@ -21,6 +21,15 @@ export interface ImportPreviewResponseDto {
   validRows: ValidRowPreviewDto[];
   invalidRows: InvalidRowDto[];
   unknownColumns: string[];
+  // The raw header row as uploaded, and the mapping actually used to
+  // interpret every row above (auto-detected unless the caller supplied
+  // `columnMapping`) — lets a UI render a real, editable "assign columns"
+  // step pre-filled with what was detected, rather than a hardcoded guess
+  // the user can't change. Re-calling preview with an explicit
+  // `columnMapping` re-validates every row against the corrected mapping;
+  // nothing is persisted by this call either way.
+  headers: string[];
+  columnMapping: Partial<Record<string, number>>;
 }
 
 export interface ImportCommitResponseDto {
