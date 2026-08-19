@@ -14,6 +14,16 @@ import { PublishWizardPage } from "./features/publications/PublishWizardPage";
 import { PublicationHistoryPage } from "./features/publications/PublicationHistoryPage";
 import { AuditLogPage } from "./features/audit/AuditLogPage";
 import { ImportWizardPage } from "./features/imports/ImportWizardPage";
+import { TenantUsersPage } from "./features/settings/TenantUsersPage";
+import { InviteAcceptPage } from "./features/invitations/InviteAcceptPage";
+import { RequirePlatformAdmin } from "./features/platform/RequirePlatformAdmin";
+import { PlatformLayout } from "./features/platform/PlatformLayout";
+import { PlatformDashboardPage } from "./features/platform/PlatformDashboardPage";
+import { TenantsListPage } from "./features/platform/TenantsListPage";
+import { TenantDetailPage } from "./features/platform/TenantDetailPage";
+import { PlatformUsersPage } from "./features/platform/PlatformUsersPage";
+import { PlatformAuditPage } from "./features/platform/PlatformAuditPage";
+import { PlatformSystemPage } from "./features/platform/PlatformSystemPage";
 
 export default function App() {
   return (
@@ -25,6 +35,7 @@ export default function App() {
 
       <Route path="/login" element={<LoginPage />} />
       <Route path="/register" element={<RegisterPage />} />
+      <Route path="/invite/:token" element={<InviteAcceptPage />} />
 
       {/* Authenticated app tree. Products, Documents, the applicability rule
           editor, the publish wizard, CSV import, Publication History, and
@@ -41,6 +52,23 @@ export default function App() {
           <Route path="documents/:id/publish/:revisionId" element={<PublishWizardPage />} />
           <Route path="publications" element={<PublicationHistoryPage />} />
           <Route path="audit" element={<AuditLogPage />} />
+          <Route path="settings/users" element={<TenantUsersPage />} />
+        </Route>
+      </Route>
+
+      {/* Platform Administration — separate shell, separate authorization
+          (PlatformAdminGuard server-side), never rendered inside a tenant
+          Organization context. See docs/platform-administration.md. */}
+      <Route element={<RequireAuth />}>
+        <Route element={<RequirePlatformAdmin />}>
+          <Route path="/platform" element={<PlatformLayout />}>
+            <Route index element={<PlatformDashboardPage />} />
+            <Route path="tenants" element={<TenantsListPage />} />
+            <Route path="tenants/:id" element={<TenantDetailPage />} />
+            <Route path="users" element={<PlatformUsersPage />} />
+            <Route path="audit" element={<PlatformAuditPage />} />
+            <Route path="system" element={<PlatformSystemPage />} />
+          </Route>
         </Route>
       </Route>
 

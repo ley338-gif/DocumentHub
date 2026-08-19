@@ -46,6 +46,20 @@ describe("Acceptance (spec §69-78)", () => {
     return res.body.accessToken as string;
   }
 
+  // Invites an *already-registered* user (via registerAndLogin) into orgId
+  // with the given role, using the real Invitation flow, and returns their
+  // resulting membership row.
+  async function inviteExistingUser(adminToken: string, orgId: string, email: string, role: string, memberToken: string) {
+    const invitation = await request(http)
+      .post(`/api/organizations/${orgId}/invitations`)
+      .set(auth(adminToken, orgId))
+      .send({ email, role })
+      .expect(201);
+    await request(http).post(`/api/invitations/${invitation.body.token}/accept`).set(auth(memberToken)).send({}).expect(201);
+    const members = await request(http).get(`/api/organizations/${orgId}/members`).set(auth(adminToken, orgId)).expect(200);
+    return members.body.find((m: { user: { email: string } }) => m.user.email === email);
+  }
+
   async function uploadRevision(
     token: string,
     orgId: string,
@@ -416,24 +430,11 @@ describe("Acceptance (spec §69-78)", () => {
     const editorToken = await registerAndLogin("editor@test-manufacturer.example", "Passw0rd!", "Editor User");
     const publisherToken = await registerAndLogin("publisher@test-manufacturer.example", "Passw0rd!", "Publisher User");
 
-    const inviteViewer = await request(http)
-      .post(`/api/organizations/${orgId}/members`)
-      .set(auth(adminToken, orgId))
-      .send({ email: "viewer@test-manufacturer.example", role: "VIEWER" })
-      .expect(201);
-    expect(inviteViewer.body.role).toBe("VIEWER");
+    const inviteViewer = await inviteExistingUser(adminToken, orgId, "viewer@test-manufacturer.example", "VIEWER", viewerToken);
+    expect(inviteViewer.role).toBe("VIEWER");
 
-    await request(http)
-      .post(`/api/organizations/${orgId}/members`)
-      .set(auth(adminToken, orgId))
-      .send({ email: "editor@test-manufacturer.example", role: "EDITOR" })
-      .expect(201);
-
-    await request(http)
-      .post(`/api/organizations/${orgId}/members`)
-      .set(auth(adminToken, orgId))
-      .send({ email: "publisher@test-manufacturer.example", role: "PUBLISHER" })
-      .expect(201);
+    await inviteExistingUser(adminToken, orgId, "editor@test-manufacturer.example", "EDITOR", editorToken);
+    await inviteExistingUser(adminToken, orgId, "publisher@test-manufacturer.example", "PUBLISHER", publisherToken);
 
     // Viewer cannot create anything.
     const viewerCreate = await request(http)
@@ -468,9 +469,9 @@ describe("Acceptance (spec §69-78)", () => {
     expect(publisherPublish.status).toBe(201);
 
     // Administrator can manage members (role change).
-    const membership = inviteViewer.body;
+    const membership = inviteViewer;
     const roleChange = await request(http)
-      .patch(`/api/organizations/${orgId}/members/${membership.id}`)
+      .patch(`/api/organizations/${orgId}/members/${membership.id}/role`)
       .set(auth(adminToken, orgId))
       .send({ role: "EDITOR" })
       .expect(200);
@@ -478,7 +479,7 @@ describe("Acceptance (spec §69-78)", () => {
 
     // Non-administrator cannot manage members.
     const editorManageAttempt = await request(http)
-      .post(`/api/organizations/${orgId}/members`)
+      .post(`/api/organizations/${orgId}/invitations`)
       .set(auth(editorToken, orgId))
       .send({ email: "someone-else@test-manufacturer.example", role: "VIEWER" });
     expect(editorManageAttempt.status).toBe(403);

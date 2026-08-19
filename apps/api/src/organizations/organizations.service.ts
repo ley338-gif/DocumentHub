@@ -3,17 +3,9 @@ import { PrismaService } from "../prisma/prisma.service";
 import { AuditService } from "../audit/audit.service";
 import { AppError } from "../common/errors/app-error";
 import { CreateOrganizationDto } from "./dto/create-organization.dto";
-import { InviteMemberDto } from "./dto/invite-member.dto";
 import { UpdateMemberRoleDto } from "./dto/update-member-role.dto";
-
-function slugify(name: string): string {
-  return name
-    .toLowerCase()
-    .trim()
-    .replace(/[^a-z0-9]+/g, "-")
-    .replace(/(^-|-$)/g, "")
-    .slice(0, 60);
-}
+import { UpdateMemberStatusDto } from "./dto/update-member-status.dto";
+import { slugify } from "../common/slugify";
 
 @Injectable()
 export class OrganizationsService {
@@ -78,35 +70,6 @@ export class OrganizationsService {
     }));
   }
 
-  async inviteMember(organizationId: string, actorId: string, dto: InviteMemberDto) {
-    const user = await this.prisma.user.findUnique({ where: { email: dto.email } });
-    if (!user) {
-      throw new AppError("NOT_FOUND", "No user with that email exists yet");
-    }
-
-    const existing = await this.prisma.organizationMembership.findUnique({
-      where: { userId_organizationId: { userId: user.id, organizationId } },
-    });
-    if (existing) {
-      throw new AppError("VALIDATION_ERROR", "User is already a member of this organization");
-    }
-
-    const membership = await this.prisma.organizationMembership.create({
-      data: { userId: user.id, organizationId, role: dto.role, status: "ACTIVE" },
-    });
-
-    await this.audit.record({
-      organizationId,
-      actorId,
-      action: "MEMBER_INVITED",
-      objectType: "OrganizationMembership",
-      objectId: membership.id,
-      after: { userId: user.id, role: dto.role },
-    });
-
-    return membership;
-  }
-
   async updateMemberRole(
     organizationId: string,
     membershipId: string,
@@ -118,6 +81,13 @@ export class OrganizationsService {
     });
     if (!membership) {
       throw new AppError("NOT_FOUND", "Membership not found");
+    }
+
+    // Last-Administrator Protection (spec §23-24): applies to self-changes
+    // too — a tenant admin can't accidentally strip their own admin role if
+    // they're the only one left, same as they can't do it to anyone else.
+    if (membership.role === "ADMINISTRATOR" && dto.role !== "ADMINISTRATOR" && membership.status === "ACTIVE") {
+      await this.assertNotLastActiveAdmin(organizationId, membershipId);
     }
 
     const before = { role: membership.role };
@@ -137,5 +107,62 @@ export class OrganizationsService {
     });
 
     return updated;
+  }
+
+  async updateMemberStatus(
+    organizationId: string,
+    membershipId: string,
+    actorId: string,
+    dto: UpdateMemberStatusDto,
+  ) {
+    const membership = await this.prisma.organizationMembership.findFirst({
+      where: { id: membershipId, organizationId },
+    });
+    if (!membership) {
+      throw new AppError("NOT_FOUND", "Membership not found");
+    }
+    if (membership.status === "INVITED") {
+      throw new AppError("INVALID_STATE_TRANSITION", "An invited-but-not-yet-active membership has no status to change");
+    }
+
+    if (dto.status === "SUSPENDED" && membership.role === "ADMINISTRATOR" && membership.status === "ACTIVE") {
+      await this.assertNotLastActiveAdmin(organizationId, membershipId);
+    }
+
+    const before = { status: membership.status };
+    const updated = await this.prisma.organizationMembership.update({
+      where: { id: membershipId },
+      data: { status: dto.status },
+    });
+
+    await this.audit.record({
+      organizationId,
+      actorId,
+      action: dto.status === "SUSPENDED" ? "MEMBER_SUSPENDED" : "MEMBER_REACTIVATED",
+      objectType: "OrganizationMembership",
+      objectId: membershipId,
+      before,
+      after: { status: updated.status },
+    });
+
+    return updated;
+  }
+
+  /** Throws LAST_ADMIN_PROTECTED if `excludeMembershipId` is (or would be)
+   * the organization's only remaining active ADMINISTRATOR. Shared by both
+   * the role-change and status-change paths, and applies identically
+   * whether the actor is changing someone else's membership or their own. */
+  private async assertNotLastActiveAdmin(organizationId: string, excludeMembershipId: string) {
+    const otherActiveAdmins = await this.prisma.organizationMembership.count({
+      where: {
+        organizationId,
+        role: "ADMINISTRATOR",
+        status: "ACTIVE",
+        id: { not: excludeMembershipId },
+      },
+    });
+    if (otherActiveAdmins === 0) {
+      throw new AppError("LAST_ADMIN_PROTECTED", "This organization must keep at least one active administrator");
+    }
   }
 }

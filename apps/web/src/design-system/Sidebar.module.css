@@ -22,6 +22,14 @@
   color: var(--color-text);
 }
 
+.brandSubtitle {
+  display: block;
+  font-size: var(--font-size-xs);
+  font-weight: var(--font-weight-medium);
+  color: var(--color-primary-600);
+  margin-top: 2px;
+}
+
 .brandIcon {
   width: 28px;
   height: 28px;

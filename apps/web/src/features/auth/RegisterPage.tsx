@@ -1,7 +1,8 @@
 import { useState, type FormEvent } from "react";
 import { Link, useNavigate } from "react-router-dom";
-import { Button, Input } from "../../design-system";
+import { Button, Input, Spinner } from "../../design-system";
 import { useAuthStore } from "./auth-store";
+import { useRegistrationMode } from "./useRegistrationMode";
 import styles from "./LoginPage.module.css";
 
 type Step = "account" | "organization";
@@ -11,6 +12,7 @@ export function RegisterPage() {
   const createOrganization = useAuthStore((s) => s.createOrganization);
   const storeError = useAuthStore((s) => s.error);
   const navigate = useNavigate();
+  const { mode, loading: modeLoading } = useRegistrationMode();
 
   const [step, setStep] = useState<Step>("account");
 
@@ -47,6 +49,35 @@ export function RegisterPage() {
     } finally {
       setSubmitting(false);
     }
+  }
+
+  if (modeLoading) {
+    return (
+      <div className={styles.page}>
+        <Spinner centered size={32} />
+      </div>
+    );
+  }
+
+  if (mode === "INVITE_ONLY") {
+    return (
+      <div className={styles.page}>
+        <div className={styles.card}>
+          <div className={styles.brand}>
+            <span className={styles.brandIcon}>DH</span>
+            Document Hub
+          </div>
+          <h1 className={styles.title}>Sie wurden eingeladen?</h1>
+          <p className={styles.subtitle}>
+            Document Hub ist derzeit nur über eine persönliche Einladung zugänglich. Öffnen Sie den Einladungslink, den
+            Sie erhalten haben, um Ihr Konto einzurichten.
+          </p>
+          <p className={styles.hint}>
+            Bereits ein Konto? <Link to="/login">Anmelden</Link>
+          </p>
+        </div>
+      </div>
+    );
   }
 
   if (step === "organization") {

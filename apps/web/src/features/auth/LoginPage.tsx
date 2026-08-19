@@ -2,6 +2,7 @@ import { useState, type FormEvent } from "react";
 import { Link, useLocation, useNavigate } from "react-router-dom";
 import { Button, Input } from "../../design-system";
 import { useAuthStore } from "./auth-store";
+import { useRegistrationMode } from "./useRegistrationMode";
 import styles from "./LoginPage.module.css";
 
 export function LoginPage() {
@@ -9,6 +10,7 @@ export function LoginPage() {
   const storeError = useAuthStore((s) => s.error);
   const navigate = useNavigate();
   const location = useLocation();
+  const { mode } = useRegistrationMode();
 
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -68,7 +70,15 @@ export function LoginPage() {
         </form>
 
         <p className={styles.hint}>
-          Noch kein Konto? <Link to="/register">Registrieren</Link>
+          {mode === "SELF_SERVICE" ? (
+            <>
+              Noch kein Konto? <Link to="/register">Registrieren</Link>
+            </>
+          ) : (
+            <>
+              Sie wurden eingeladen? <Link to="/register">Mehr erfahren</Link>
+            </>
+          )}
         </p>
       </div>
     </div>

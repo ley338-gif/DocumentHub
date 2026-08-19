@@ -11,6 +11,8 @@ import { ApplicabilityModule } from "./applicability/applicability.module";
 import { PublicationsModule } from "./publications/publications.module";
 import { ImportsModule } from "./imports/imports.module";
 import { PublicModule } from "./public/public.module";
+import { InvitationsModule } from "./invitations/invitations.module";
+import { PlatformModule } from "./platform/platform.module";
 
 @Module({
   imports: [
@@ -26,6 +28,8 @@ import { PublicModule } from "./public/public.module";
     PublicationsModule,
     ImportsModule,
     PublicModule,
+    InvitationsModule,
+    PlatformModule,
   ],
 })
 export class AppModule {}

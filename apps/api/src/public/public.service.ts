@@ -27,9 +27,12 @@ export class PublicService {
   async getProductPage(productStableId: string, language?: string): Promise<PublicProductDto> {
     const product = await this.prisma.product.findUnique({
       where: { stableId: productStableId },
-      include: { organization: true },
     });
-    if (!product || product.organization.status === "SUSPENDED") {
+    // Deliberately no Organization.status check — a tenant lifecycle change
+    // (SUSPENDED, even CLOSED) must never hide documentation already
+    // delivered for a physical machine. See docs/platform-administration.md
+    // "Public Documentation Policy". Only genuine absence 404s.
+    if (!product) {
       throw PUBLIC_NOT_FOUND();
     }
 
@@ -53,9 +56,9 @@ export class PublicService {
   async getUnitPage(unitStableId: string, language?: string): Promise<PublicUnitDto> {
     const unit = await this.prisma.unit.findUnique({
       where: { stableId: unitStableId },
-      include: { organization: true, product: true, variant: true },
+      include: { product: true, variant: true },
     });
-    if (!unit || unit.organization.status === "SUSPENDED") {
+    if (!unit) {
       throw PUBLIC_NOT_FOUND();
     }
 
@@ -80,9 +83,8 @@ export class PublicService {
   async downloadForProduct(productStableId: string, publicationStableId: string, res: Response): Promise<void> {
     const product = await this.prisma.product.findUnique({
       where: { stableId: productStableId },
-      include: { organization: true },
     });
-    if (!product || product.organization.status === "SUSPENDED") {
+    if (!product) {
       throw PUBLIC_NOT_FOUND();
     }
     await this.streamIfCurrentlyResolved(
@@ -95,9 +97,8 @@ export class PublicService {
   async downloadForUnit(unitStableId: string, publicationStableId: string, res: Response): Promise<void> {
     const unit = await this.prisma.unit.findUnique({
       where: { stableId: unitStableId },
-      include: { organization: true },
     });
-    if (!unit || unit.organization.status === "SUSPENDED") {
+    if (!unit) {
       throw PUBLIC_NOT_FOUND();
     }
     await this.streamIfCurrentlyResolved(

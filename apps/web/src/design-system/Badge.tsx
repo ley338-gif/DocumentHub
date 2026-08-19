@@ -30,6 +30,11 @@ const STATUS_TONE: Record<string, BadgeTone> = {
   SUSPENDED: "danger",
   EXPIRED: "danger",
   INVITED: "warning",
+  // Platform administration (Organization/Invitation lifecycle)
+  TRIAL: "info",
+  CLOSED: "danger",
+  PENDING: "warning",
+  ACCEPTED: "success",
 };
 
 export interface StatusBadgeProps {

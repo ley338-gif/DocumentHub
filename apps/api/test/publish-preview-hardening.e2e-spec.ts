@@ -63,10 +63,14 @@ describe("Publish preview hardening: isolation, RBAC, reproducibility, domain-pr
   }
 
   async function invite(adminToken: string, orgId: string, email: string, role: string) {
-    await registerAndLogin(email, "Passw0rd!", "Member");
-    await request(http).post(`/api/organizations/${orgId}/members`).set(auth(adminToken, orgId)).send({ email, role }).expect(201);
-    const res = await request(http).post("/api/auth/login").send({ email, password: "Passw0rd!" });
-    return res.body.accessToken as string;
+    const memberToken = await registerAndLogin(email, "Passw0rd!", "Member");
+    const invitation = await request(http)
+      .post(`/api/organizations/${orgId}/invitations`)
+      .set(auth(adminToken, orgId))
+      .send({ email, role })
+      .expect(201);
+    await request(http).post(`/api/invitations/${invitation.body.token}/accept`).set(auth(memberToken)).send({}).expect(201);
+    return memberToken;
   }
 
   // ---------------------------------------------------------------------

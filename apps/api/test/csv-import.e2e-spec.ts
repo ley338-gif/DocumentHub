@@ -304,11 +304,12 @@ describe("CSV unit import (spec §33-35)", () => {
 
   it("requires Editor role or higher", async () => {
     const viewerToken = await registerAndLogin("viewer@csv-import.example", "Passw0rd!", "Viewer");
-    await request(http)
-      .post(`/api/organizations/${orgId}/members`)
+    const invitation = await request(http)
+      .post(`/api/organizations/${orgId}/invitations`)
       .set(auth(editorToken, orgId))
       .send({ email: "viewer@csv-import.example", role: "VIEWER" })
       .expect(201);
+    await request(http).post(`/api/invitations/${invitation.body.token}/accept`).set(auth(viewerToken)).send({}).expect(201);
 
     const csv = ["serialNumber,productReference", `SN-RBAC-1,${productStableId}`].join("\n");
     const res = await uploadCsv(viewerToken, orgId, csv);
