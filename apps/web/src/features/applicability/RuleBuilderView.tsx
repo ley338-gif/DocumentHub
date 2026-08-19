@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { Badge, Button, Dialog, Spinner, useToast } from "../../design-system";
+import { Badge, Button, Dialog, EmptyState, ErrorState, Spinner, useToast } from "../../design-system";
 import type { ApplicabilityRuleDto, PublishPreviewDto } from "../../lib/api-types";
 import { ApiError } from "../../lib/api-error";
 import { deleteApplicabilityRule } from "../documents/api";
@@ -92,7 +92,7 @@ export function RuleBuilderView({
         </p>
       )}
 
-      {canPreview && previewError && <p role="alert">{previewError}</p>}
+      {canPreview && previewError && <ErrorState error={previewError} onRetry={reloadPreview} />}
       {canPreview && preview && <ConflictBanner conflicts={preview.conflicts} />}
 
       {canPreview && preview && (
@@ -115,7 +115,24 @@ export function RuleBuilderView({
       )}
       {canPreview && previewLoading && !preview && <Spinner size={24} />}
 
-      {rules.length === 0 && <p>Keine Anwendbarkeitsregeln für diese Revision.</p>}
+      {rules.length === 0 && (
+        <EmptyState
+          title="Keine Anwendbarkeitsregeln für diese Revision."
+          description="Ohne Regeln gilt diese Revision uneingeschränkt für alle Einheiten."
+          action={
+            canWrite ? (
+              <Button
+                onClick={() => {
+                  setEditingRule(null);
+                  setDrawerOpen(true);
+                }}
+              >
+                + Regel hinzufügen
+              </Button>
+            ) : undefined
+          }
+        />
+      )}
 
       <ul style={{ listStyle: "none", margin: 0, padding: 0, display: "flex", flexDirection: "column", gap: "0.75rem" }}>
         {rules.map((rule) => {

@@ -73,7 +73,7 @@ export function RuleFormDrawer({ open, onClose, revisionId, editingRule, onSaved
 
   return (
     <Drawer open={open} onClose={onClose} title={editingRule ? "Regel bearbeiten" : "Regel anlegen"}>
-      <form onSubmit={handleSubmit} style={{ display: "flex", flexDirection: "column", gap: "1rem", minWidth: "24rem" }}>
+      <form onSubmit={handleSubmit} style={{ display: "flex", flexDirection: "column", gap: "1rem" }}>
         <ScopeFields value={form} onChange={setForm} />
         <div style={{ display: "flex", gap: "0.5rem", justifyContent: "flex-end" }}>
           <Button type="button" variant="secondary" onClick={onClose} disabled={saving}>

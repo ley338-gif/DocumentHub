@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { Badge, Button, Input, Pagination, Spinner, Table, type TableColumn } from "../../design-system";
+import { Badge, Button, ErrorState, Input, Pagination, Spinner, Table, type TableColumn } from "../../design-system";
 import type { Unit } from "../../lib/api-types";
 import { usePaginated } from "../../lib/use-paginated";
 import { listUnits } from "../products/api";
@@ -89,7 +89,7 @@ export function UnitPicker({ productId, unitId, unitSerialNumber, onChange }: Un
             </Button>
           </div>
           {loading && <Spinner size={24} />}
-          {error && <p role="alert">{error}</p>}
+          {error && <ErrorState error={error} />}
           {!loading && !error && (
             <>
               <Table
