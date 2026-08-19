@@ -47,12 +47,27 @@ export interface PublishPreviewResult {
   rules: RulePreview[];
   totalAffectedUnitsCount: number;
   sampleSerials: string[];
-  conflicts: {
-    existingPublicationId: string;
-    existingPublicationStableId: string;
-    newRuleId: string;
-    conflictingRuleId: string;
-  }[];
+  conflicts: PreviewConflict[];
+}
+
+export type ConflictReason =
+  // The conflicting ACTIVE publication belongs to a genuinely different
+  // revision — a real, competing applicability overlap that a human needs
+  // to resolve (spec §19/§75).
+  | "CONFLICT"
+  // The "conflicting" ACTIVE publication IS this exact revision, already
+  // published with the same rule set — findConflicts() correctly still
+  // reports this (it's what stops a redundant duplicate publish, and the
+  // real POST /api/publications would reject it too), but it is not a
+  // competing-revision situation, so the UI must not present it as one.
+  | "ALREADY_PUBLISHED";
+
+export interface PreviewConflict {
+  existingPublicationId: string;
+  existingPublicationStableId: string;
+  newRuleId: string;
+  conflictingRuleId: string;
+  reason: ConflictReason;
 }
 
 /**
@@ -80,10 +95,23 @@ export class PublishPreviewService {
     const liveRules = await this.prisma.applicabilityRule.findMany({ where: { organizationId, revisionId } });
     const ruleSnapshots: AppliedRuleSnapshot[] = liveRules.map(toAppliedRuleSnapshot);
 
-    const [affected, conflicts] = await Promise.all([
+    const [affected, rawConflicts] = await Promise.all([
       countAffectedUnits(this.prisma, organizationId, ruleSnapshots),
       findConflicts(this.prisma, organizationId, revision.documentId, revision.language, ruleSnapshots),
     ]);
+
+    // findConflicts() itself is not touched — it stays the single, unwatered
+    // source of truth PublishService also uses. Only here, in the read-only
+    // preview's presentation mapping, do we tell "this IS the revision
+    // being previewed, already active" apart from "a different revision
+    // competes with this one" — see ConflictReason above.
+    const conflicts: PreviewConflict[] = rawConflicts.map((c) => ({
+      existingPublicationId: c.existingPublicationId,
+      existingPublicationStableId: c.existingPublicationStableId,
+      newRuleId: c.newRuleId,
+      conflictingRuleId: c.conflictingRuleId,
+      reason: c.existingPublicationRevisionId === revision.id ? "ALREADY_PUBLISHED" : "CONFLICT",
+    }));
 
     const names = await this.resolveScopeNames(organizationId, ruleSnapshots);
     const rules: RulePreview[] = ruleSnapshots.map((rule) => ({
