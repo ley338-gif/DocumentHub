@@ -13,17 +13,62 @@ Browser ──▶ API (NestJS) ──▶ PostgreSQL
                           └─▶ Storage (local volume, or S3-compatible)
 ```
 
-Web and API are deliberately **separate origins**, not one reverse-proxied
-origin with `/api/*` split off. The public `/p/:stableId` and `/u/:stableId`
-paths are simultaneously (a) SPA client routes that must render HTML on
-direct browser navigation, and (b) the exact unprefixed path the SPA's own
-JS fetches JSON from — collapsing Web and API onto one origin would make
-those two uses collide. Separate origins with strict CORS (see
-[security.md](security.md)) avoids that entirely, at the cost of needing
-two `PUBLIC_BASE_URL`/`VITE_API_BASE_URL` values instead of one. An operator
-can still put a single reverse proxy in front that proxies `/api/*` to the
-API and everything else to Web — that's collision-free — but Document Hub
-does not assume it.
+Web and API are deliberately **separate origins by default**, not one
+reverse-proxied origin with `/api/*` split off. The public `/p/:stableId`
+and `/u/:stableId` paths are simultaneously (a) SPA client routes that must
+render HTML on direct browser navigation, and (b) the exact unprefixed path
+the SPA's own JS fetches JSON from — collapsing Web and API onto one origin
+makes those two uses collide at the identical path, since a plain
+`/api/*`-vs-everything-else split sends both of them to Web. Separate
+origins with strict CORS (see [security.md](security.md)) avoids the
+question entirely, at the cost of needing two `PUBLIC_BASE_URL`/
+`VITE_API_BASE_URL` values instead of one.
+
+### Optional: a single domain, with content negotiation
+
+An operator who wants everything behind one domain (e.g. one existing
+reverse proxy already fronting several apps) can do it, but `/api/*`-vs-
+everything-else alone is **not** collision-free for `/p` and `/u` — this
+was tried and caught during this project's own real-device QR validation.
+The fix: the frontend's API client sends `Accept: application/json` on
+every request (see `apps/web/src/lib/api-client.ts`); a real browser
+navigation never does. Route on that, plus keep the download sub-paths
+(which have no competing SPA route at all) unconditionally on the API:
+
+```caddyfile
+your-domain.example {
+    @publicDownload path_regexp ^/(p|u)/[^/]+/publications/[^/]+/download$
+    handle @publicDownload {
+        reverse_proxy api:3000
+    }
+
+    @publicPageData {
+        path_regexp ^/(p|u)/[^/]+$
+        header Accept application/json
+    }
+    handle @publicPageData {
+        reverse_proxy api:3000
+    }
+
+    handle /api/* {
+        reverse_proxy api:3000
+    }
+    handle /health/* {
+        reverse_proxy api:3000
+    }
+    handle {
+        reverse_proxy web:80
+    }
+}
+```
+
+Set both `PUBLIC_BASE_URL` and `VITE_API_BASE_URL` to that one domain. This
+is genuinely more fragile than the two-origin default (it depends on every
+client sending `Accept` correctly, which only Document Hub's own frontend
+is guaranteed to do) — use it deliberately, not as the default assumption,
+and re-verify `/p`/`/u` actually return JSON to the SPA (not the SPA shell)
+after any proxy config change: `curl -s -H "Accept: application/json" https://your-domain/u/<stableId>`
+should return JSON, not `<!doctype html>`.
 
 ## Prerequisites
 
