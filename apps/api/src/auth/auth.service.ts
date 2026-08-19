@@ -1,10 +1,12 @@
 import { Injectable } from "@nestjs/common";
 import { JwtService } from "@nestjs/jwt";
+import { PlatformRole } from "@prisma/client";
 import { PrismaService } from "../prisma/prisma.service";
 import { PasswordService } from "./password.service";
 import { AppError } from "../common/errors/app-error";
 import { RegisterDto } from "./dto/register.dto";
 import { LoginDto } from "./dto/login.dto";
+import { registrationMode } from "../platform/registration-mode";
 
 @Injectable()
 export class AuthService {
@@ -15,6 +17,14 @@ export class AuthService {
   ) {}
 
   async register(dto: RegisterDto) {
+    // Open self-service registration is a development convenience only —
+    // see docs/platform-administration.md "Registration Mode". In
+    // INVITE_ONLY (the production-like default) the only way to create a
+    // User is by accepting an Invitation (see platform/invitations).
+    if (registrationMode() === "INVITE_ONLY") {
+      throw new AppError("FORBIDDEN", "Open registration is disabled — an invitation is required");
+    }
+
     const existing = await this.prisma.user.findUnique({ where: { email: dto.email } });
     if (existing) {
       throw new AppError("VALIDATION_ERROR", "Email already registered");
@@ -38,6 +48,8 @@ export class AuthService {
     if (!valid) {
       throw new AppError("VALIDATION_ERROR", "Invalid credentials");
     }
+
+    await this.prisma.user.update({ where: { id: user.id }, data: { lastLoginAt: new Date() } });
 
     // NOTE: no AuditEvent is emitted here. AuditEvent.organizationId is
     // required (not nullable) and login is a pre-tenant action (a user may
@@ -75,7 +87,19 @@ export class AuthService {
     };
   }
 
-  private toPublicUser(user: { id: string; email: string; fullName: string; status: string }) {
-    return { id: user.id, email: user.email, fullName: user.fullName, status: user.status };
+  private toPublicUser(user: {
+    id: string;
+    email: string;
+    fullName: string;
+    status: string;
+    platformRole: PlatformRole;
+  }) {
+    return {
+      id: user.id,
+      email: user.email,
+      fullName: user.fullName,
+      status: user.status,
+      platformRole: user.platformRole,
+    };
   }
 }
