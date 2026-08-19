@@ -238,6 +238,37 @@ export interface PublicationDto {
   snapshot?: PublicationSnapshotDto;
 }
 
+// --- Publish preview (apps/api/src/publications/publish-preview.service.ts)
+// GET /api/publications/preview/:revisionId — Editor+. This is the ONLY
+// source of specificity/affectedUnitsCount/conflicts numbers in the UI; the
+// frontend must never recompute these client-side (see README.md). ---
+
+export interface RulePreviewDto {
+  ruleId: string;
+  specificity: number;
+  description: string;
+  affectedUnitsCount: number;
+}
+
+export interface PublishConflictDto {
+  existingPublicationId: string;
+  existingPublicationStableId: string;
+  newRuleId: string;
+  conflictingRuleId: string;
+}
+
+export interface PublishPreviewDto {
+  revisionId: string;
+  documentId: string;
+  language: string;
+  revisionStatus: string;
+  canPublish: boolean;
+  rules: RulePreviewDto[];
+  totalAffectedUnitsCount: number;
+  sampleSerials: string[];
+  conflicts: PublishConflictDto[];
+}
+
 // --- Audit (apps/api/src/audit) ---
 
 export interface AuditEventDto {

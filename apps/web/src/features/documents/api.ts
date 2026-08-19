@@ -137,6 +137,51 @@ export function listApplicabilityRules(revisionId: string): Promise<Applicabilit
   return apiRequest<ApplicabilityRuleDto[]>(`/api/documents/revisions/${revisionId}/applicability-rules`);
 }
 
+// Scope fields mirror CreateApplicabilityRuleDto/UpdateApplicabilityRuleDto
+// (apps/api/src/applicability/dto/applicability-rule.dto.ts) exactly — all
+// optional, AND-combined (spec §63). The backend is authoritative on
+// validation (serial format, date ordering, etc.); this input type imposes
+// no shape beyond "these are the fields that exist."
+export interface ApplicabilityRuleInput {
+  productFamilyId?: string;
+  productId?: string;
+  variantId?: string;
+  batchId?: string;
+  unitId?: string;
+  serialFrom?: string;
+  serialTo?: string;
+  validFrom?: string;
+  validUntil?: string;
+  explicitExclusion?: boolean;
+}
+
+export function createApplicabilityRule(
+  revisionId: string,
+  dto: ApplicabilityRuleInput,
+): Promise<ApplicabilityRuleDto> {
+  return apiRequest<ApplicabilityRuleDto>(`/api/documents/revisions/${revisionId}/applicability-rules`, {
+    method: "POST",
+    body: dto,
+  });
+}
+
+export function updateApplicabilityRule(
+  revisionId: string,
+  id: string,
+  dto: ApplicabilityRuleInput,
+): Promise<ApplicabilityRuleDto> {
+  return apiRequest<ApplicabilityRuleDto>(`/api/documents/revisions/${revisionId}/applicability-rules/${id}`, {
+    method: "PATCH",
+    body: dto,
+  });
+}
+
+export function deleteApplicabilityRule(revisionId: string, id: string): Promise<void> {
+  return apiRequest<void>(`/api/documents/revisions/${revisionId}/applicability-rules/${id}`, {
+    method: "DELETE",
+  });
+}
+
 export function listPublicationsForDocument(documentId: string): Promise<Paginated<PublicationDto>> {
   return apiRequest<Paginated<PublicationDto>>("/api/publications", {
     query: { documentId, pageSize: 100 },
