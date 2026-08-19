@@ -1,7 +1,6 @@
 import { useEffect, useState } from "react";
 import { ErrorState, Spinner, StatusBadge } from "../../../design-system";
 import type { Product } from "../../../lib/api-types";
-import { API_BASE_URL } from "../../../lib/api-client";
 import { fetchQrImageUrl } from "../api";
 
 export interface PublicAccessTabProps {
@@ -11,7 +10,10 @@ export interface PublicAccessTabProps {
 export function PublicAccessTab({ product }: PublicAccessTabProps) {
   const [qrUrl, setQrUrl] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
-  const publicUrl = `${API_BASE_URL.replace(/\/$/, "")}/p/${product.stableId}`;
+  // The SPA hosts /p/:stableId itself, so the page's own origin — not the
+  // API's — is always the correct public URL, regardless of deployment
+  // topology (see apps/web/README.md's "public routes" note).
+  const publicUrl = `${window.location.origin}/p/${product.stableId}`;
 
   useEffect(() => {
     let objectUrl: string | null = null;

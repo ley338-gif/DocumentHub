@@ -85,7 +85,7 @@ export function PublicationHistoryPage() {
     to: to || undefined,
   };
 
-  const { items, total, page, pageSize, setPage, loading, error } = usePaginated<PublicationDto>(
+  const { items, total, page, pageSize, setPage, loading, error, reload } = usePaginated<PublicationDto>(
     (p, ps) => listPublicationHistory(query, p, ps),
     [status, documentId, productId, from, to],
   );
@@ -199,7 +199,7 @@ export function PublicationHistoryPage() {
         </>
       )}
 
-      <PublicationDetailDrawer publicationId={detailId} onClose={closeDetail} />
+      <PublicationDetailDrawer publicationId={detailId} onClose={closeDetail} onRevoked={reload} />
     </div>
   );
 }
