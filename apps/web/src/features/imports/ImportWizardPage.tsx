@@ -64,17 +64,15 @@ export function ImportWizardPage() {
 
   const [preview, setPreview] = useState<ImportPreviewResponseDto | null>(null);
   // Headers shown in the mapping step's Selects. Normally comes straight
-  // from a successful preview's `headers`. But the backend's preview()
-  // throws FILE_VALIDATION_FAILED *before* returning `headers` when
-  // auto-detection can't find serialNumber/productReference at all
-  // (imports.service.ts) — in that case there is no server-provided
-  // header list to seed step 2 with, yet the user still needs to reach
-  // step 2 to fix the mapping by hand. `headers` is decoupled from
-  // `preview` for exactly this reason: on that failure it's filled from a
-  // local, display-only parse of the file's first line (see
-  // parseFirstLineLocally) purely to populate dropdown options — never
-  // used for validation. The next preview call (with the user's mapping)
-  // is what actually validates, same as the auto-detected path.
+  // from a successful preview's `headers`. When the backend rejects the
+  // file with FILE_VALIDATION_FAILED because auto-detection couldn't find
+  // serialNumber/productReference at all, the same header list is still
+  // available on `error.details.headers` (imports.service.ts attaches it
+  // specifically for this case) — the user still needs to reach step 2 to
+  // fix the mapping by hand, and this is the real, backend-parsed header
+  // row, not a client-side re-implementation of CSV parsing that could
+  // disagree with the server on edge cases like quoted headers containing
+  // commas. `headers` is decoupled from `preview` for exactly this reason.
   const [headers, setHeaders] = useState<string[] | null>(null);
   const [mapping, setMapping] = useState<MappingState>({});
   const [previewLoading, setPreviewLoading] = useState(false);
@@ -127,15 +125,19 @@ export function ImportWizardPage() {
       setMapping(res.columnMapping);
       setStepIndex(1);
     } catch (err) {
-      if (err instanceof ApiError && err.code === "FILE_VALIDATION_FAILED") {
-        const localHeaders = await parseFirstLineLocally(file);
-        if (localHeaders && localHeaders.length > 0) {
-          setPreview(null);
-          setHeaders(localHeaders);
-          setMapping({});
-          setStepIndex(1);
-          return;
-        }
+      // FILE_VALIDATION_FAILED for a missing required column still carries
+      // the real, backend-parsed header row in `details` (see
+      // imports.service.ts) — the user needs to reach step 2 to fix the
+      // mapping by hand, and this is the actual server parse, not a
+      // client-side guess that could disagree on edge cases (quoted
+      // headers containing commas, for example).
+      const rejectionHeaders = err instanceof ApiError ? extractHeadersFromErrorDetails(err.details) : null;
+      if (rejectionHeaders) {
+        setPreview(null);
+        setHeaders(rejectionHeaders.headers);
+        setMapping(rejectionHeaders.columnMapping);
+        setStepIndex(1);
+        return;
       }
       setPreviewError(err instanceof ApiError ? err.userMessage : "Datei konnte nicht analysiert werden.");
     } finally {
@@ -278,22 +280,20 @@ export function ImportWizardPage() {
 // Step 1 — Datei
 // ---------------------------------------------------------------------------
 
-/** Display-only fallback: reads just the first line of the file and splits
- * it on commas (no quote-handling — this is deliberately not a full CSV
- * parser) to populate the mapping step's dropdown options when the
- * backend couldn't return a header list at all (see the comment on the
- * `headers` state above). Never used to decide validity — only to let the
- * user pick which column is which field before the real, server-side
- * preview call runs against their mapping. */
-async function parseFirstLineLocally(file: File): Promise<string[] | null> {
-  try {
-    const text = await file.text();
-    const firstLine = text.split(/\r\n|\n/, 1)[0];
-    if (!firstLine) return null;
-    return firstLine.split(",").map((cell) => cell.trim());
-  } catch {
-    return null;
-  }
+/** Pulls the real, backend-parsed `{headers, columnMapping}` out of a
+ * FILE_VALIDATION_FAILED error's `details` (see imports.service.ts) — the
+ * exact shape the success response also uses. Returns null for any other
+ * error, or if `details` doesn't have the expected shape (defensive, not
+ * expected to happen against this backend, but never crash on a malformed
+ * response instead of showing the real error). */
+function extractHeadersFromErrorDetails(
+  details: unknown,
+): { headers: string[]; columnMapping: MappingState } | null {
+  if (!details || typeof details !== "object") return null;
+  const d = details as { headers?: unknown; columnMapping?: unknown };
+  if (!Array.isArray(d.headers) || !d.headers.every((h) => typeof h === "string")) return null;
+  const columnMapping = d.columnMapping && typeof d.columnMapping === "object" ? (d.columnMapping as MappingState) : {};
+  return { headers: d.headers as string[], columnMapping };
 }
 
 function FileStep({
