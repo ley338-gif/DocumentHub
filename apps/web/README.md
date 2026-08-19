@@ -237,8 +237,9 @@ keyboard-focusable and Enter/Space-activatable), `FilterBar`, `Badge` /
 `StatusBadge`, `Dialog`, `Drawer` (both trap focus and restore it to the
 triggering element on close — see "Dialog/Drawer a11y" below), `Pagination`,
 `Toast` (`ToastProvider` + `useToast()`), `Button`, `Input`, `Select`,
-`Spinner`, `EmptyState`, `LoadingState`, `ErrorState`. All are exported
-from `src/design-system/index.ts`.
+`Spinner`, `EmptyState`, `LoadingState`, `ErrorState`, `DescriptionList` /
+`DescriptionItem` (see "Übersicht tab key-value layout" below). All are
+exported from `src/design-system/index.ts`.
 
 **These are the conventions this pass established — later phases (per-page
 polish, critical workflows, history/audit, dashboard, public page) should
@@ -325,6 +326,41 @@ same "keep a real action button, drop a pure-navigation one" rule.
   messages, e.g. "nur APPROVED Revisionen können veröffentlicht werden",
   which aren't caught exceptions) were deliberately left alone — only
   genuine caught-error rendering should move to `ErrorState`.
+
+**Phase 2 (Products/Documents list + detail polish)** finished converting
+the remaining bare `<Spinner centered />`/`<p role="alert">{error}</p>` call
+sites inside Product Detail's and Document Detail's individual tabs —
+`products/tabs/DocumentationTab.tsx`, `products/tabs/PublicAccessTab.tsx`,
+`documents/tabs/PublicationsTab.tsx`, and the rules-loading/rules-error
+lines in `documents/tabs/ApplicabilityTab.tsx` (the tab's own loading/error
+wrapper only — the Applicability Editor's internals in
+`features/applicability/` are a later phase's scope and were left alone).
+Also converted the plain-string `Table` `emptyMessage`s on
+`products/tabs/VariantsTab.tsx` and `UnitsTab.tsx` (now `EmptyState` with a
+"Neue Variante"/"Neue Einheit" action, matching the list-page convention of
+keeping the header create button *and* mirroring it into the empty state's
+action slot — not a redundant floating button, since the header button is
+the page's/tab's normal create affordance, not something that only exists
+because the list is empty) and on `documents/tabs/RevisionsTab.tsx` and
+`documents/tabs/PublicationsTab.tsx` (no action slot there — the real
+action, uploading a file, lives on a different tab). `FilesTab.tsx`'s
+`fieldError` was deliberately left as a plain `<p role="alert">` — it's a
+client-side file-picker validation message, not a caught API error, same
+category as the "remaining sites" called out above.
+
+### Übersicht tab key-value layout (`DescriptionList`, `DescriptionItem`)
+
+Product Detail's and Document Detail's read-only "Übersicht" tab had
+drifted into two slightly different hand-rolled key-value patterns (a local
+`Field` helper component in `products/tabs/OverviewTab.tsx` vs. inline
+`<div><span style={{fontWeight:600}}>Label: </span>value</div>` rows in
+`documents/tabs/OverviewTab.tsx`) — same visual result, two copies of the
+markup. Phase 2 unified both onto one shared component,
+`design-system/DescriptionList.tsx`: a semantic `<dl>` (`DescriptionList`)
+of `DescriptionItem` label/value rows (`<dt>`/`<dd>`), same bold-label/
+plain-value look as before. Use it for any future read-only key-value
+summary block — pass a `StatusBadge` as an item's `value` (as both Overview
+tabs do for the `Status` row) rather than reaching for the raw string.
 
 ### Dialog/Drawer a11y (`useFocusTrap`)
 
