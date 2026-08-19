@@ -4,8 +4,12 @@ import { formatFileSize } from "../../lib/format";
 import type { PublicPublicationDto } from "../../lib/api-types";
 import styles from "./PublicPage.module.css";
 
-function buttonClass(variant: "primary" | "outline", size: "sm") {
-  return [buttonStyles.button, buttonStyles[variant], buttonStyles[size]].join(" ");
+function buttonClass(variant: "primary" | "outline") {
+  // Sized via .pubActionButton, not the shared Button size classes — this is
+  // the one screen in the app primarily used right after scanning a QR code
+  // on a phone, so its tap targets need the ~44px minimum regardless of how
+  // "sm" is tuned for admin table rows elsewhere.
+  return [buttonStyles.button, buttonStyles[variant], styles.pubActionButton].join(" ");
 }
 
 export interface PublicationListProps {
@@ -29,10 +33,10 @@ export function PublicationList({ publications }: PublicationListProps) {
               </div>
             </div>
             <div className={styles.pubActions}>
-              <a className={buttonClass("outline", "sm")} href={href} target="_blank" rel="noopener noreferrer">
+              <a className={buttonClass("outline")} href={href} target="_blank" rel="noopener noreferrer">
                 Öffnen
               </a>
-              <a className={buttonClass("primary", "sm")} href={href} download={pub.filename}>
+              <a className={buttonClass("primary")} href={href} download={pub.filename}>
                 Herunterladen
               </a>
             </div>

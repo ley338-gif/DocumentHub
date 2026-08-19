@@ -1,12 +1,11 @@
 import { useParams } from "react-router-dom";
-import { Spinner } from "../../design-system";
 import type { PublicUnitDto } from "../../lib/api-types";
 import { fetchPublicUnit } from "./api";
 import { usePublicResource } from "./usePublicResource";
 import { useLanguageFilter } from "./useLanguageFilter";
 import { LanguageSelector } from "./LanguageSelector";
 import { PublicationList } from "./PublicationList";
-import { EmptyPublicationsState, ErrorState, NotFoundState } from "./PublicPageStates";
+import { EmptyPublicationsState, ErrorState, LoadingPublicPageState, NotFoundState } from "./PublicPageStates";
 import { PublicPageFrame } from "./PublicPageFrame";
 import styles from "./PublicPage.module.css";
 
@@ -16,7 +15,7 @@ export function PublicUnitPage() {
 
   return (
     <PublicPageFrame>
-      {state.status === "loading" && <Spinner centered size={32} />}
+      {state.status === "loading" && <LoadingPublicPageState />}
       {state.status === "not-found" && <NotFoundState />}
       {state.status === "error" && <ErrorState message={state.message} />}
       {state.status === "success" && <UnitContent unit={state.data} />}
