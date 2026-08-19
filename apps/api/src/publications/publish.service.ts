@@ -5,8 +5,7 @@ import { AuditService } from "../audit/audit.service";
 import { AppError } from "../common/errors/app-error";
 import { AppliedRuleSnapshot } from "../applicability/applicability.types";
 import { toAppliedRuleSnapshot } from "../applicability/to-applied-rule-snapshot";
-import { specificity } from "../applicability/specificity";
-import { rulesCouldOverlap } from "./rules-overlap";
+import { findConflicts } from "./conflict-detection";
 
 const HIERARCHY: Record<MembershipRole, number> = { VIEWER: 0, EDITOR: 1, PUBLISHER: 2, ADMINISTRATOR: 3 };
 
@@ -44,33 +43,14 @@ export class PublishService {
         const liveRules = await tx.applicabilityRule.findMany({ where: { organizationId, revisionId } });
         const newRuleSnapshots: AppliedRuleSnapshot[] = liveRules.map(toAppliedRuleSnapshot);
 
-        const existingActive = await tx.publication.findMany({
-          where: {
-            organizationId,
-            status: "ACTIVE",
-            snapshot: { documentId: revision.documentId, language: revision.language },
-          },
-          include: { snapshot: true },
-        });
-
-        for (const existing of existingActive) {
-          if (!existing.snapshot) continue;
-          const existingRules = existing.snapshot.applicabilityRules as unknown as AppliedRuleSnapshot[];
-          for (const newRule of newRuleSnapshots) {
-            if (newRule.explicitExclusion) continue;
-            const newSpecificity = specificity(newRule);
-            for (const existingRule of existingRules) {
-              if (existingRule.explicitExclusion) continue;
-              if (specificity(existingRule) !== newSpecificity) continue;
-              if (rulesCouldOverlap(newRule, existingRule)) {
-                throw new AppError(
-                  "APPLICABILITY_CONFLICT",
-                  `New applicability rules conflict with an existing active publication (${existing.stableId}) at equal specificity`,
-                  { existingPublicationId: existing.id, conflictingRuleId: existingRule.id },
-                );
-              }
-            }
-          }
+        const conflicts = await findConflicts(tx, organizationId, revision.documentId, revision.language, newRuleSnapshots);
+        if (conflicts.length > 0) {
+          const [first] = conflicts;
+          throw new AppError(
+            "APPLICABILITY_CONFLICT",
+            `New applicability rules conflict with an existing active publication (${first.existingPublicationStableId}) at equal specificity`,
+            { conflicts },
+          );
         }
 
         const publication = await tx.publication.create({
