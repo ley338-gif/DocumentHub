@@ -8,6 +8,7 @@ import {
   PageHeader,
   Select,
   Spinner,
+  StatTile,
   Table,
   type TableColumn,
   WizardSteps,
@@ -502,17 +503,6 @@ function ReviewStep({ preview }: { preview: ImportPreviewResponseDto }) {
         emptyMessage={<EmptyState title="Keine gültigen Zeilen." />}
       />
       {remainingValid > 0 && <p>… und {remainingValid} weitere gültige Zeilen (nicht einzeln angezeigt).</p>}
-    </div>
-  );
-}
-
-function StatTile({ label, value, tone }: { label: string; value: number; tone: "success" | "warning" | "danger" | "neutral" }) {
-  return (
-    <div>
-      <div style={{ fontSize: "1.75rem", fontWeight: 700 }}>{value.toLocaleString("de-DE")}</div>
-      <div>
-        <Badge tone={tone}>{label}</Badge>
-      </div>
     </div>
   );
 }

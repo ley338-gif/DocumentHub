@@ -19,3 +19,4 @@ export * from "./LoadingState";
 export * from "./ErrorState";
 export * from "./DescriptionList";
 export * from "./WizardSteps";
+export * from "./StatTile";
