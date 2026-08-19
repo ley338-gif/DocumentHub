@@ -81,6 +81,34 @@ describe("mapHeaders", () => {
     const { unknownColumns } = mapHeaders(["serialNumber", "", "productReference"]);
     expect(unknownColumns).toEqual([]);
   });
+
+  it("an explicit override wins over auto-detection for the fields it specifies", () => {
+    // Header row where auto-detection would map serialNumber->0,
+    // productReference->1 (both aliased columns) — the caller insists
+    // serialNumber actually lives in column 2 instead (e.g. the file's
+    // first column is really something else that happens to match an
+    // alias by coincidence).
+    const { columnByField } = mapHeaders(["Serial", "Product", "SN"], { serialNumber: 2 });
+    expect(columnByField.serialNumber).toBe(2);
+    expect(columnByField.productReference).toBe(1); // untouched auto-detected value
+  });
+
+  it("an override of null/empty string explicitly un-maps a field, overriding auto-detection", () => {
+    const { columnByField } = mapHeaders(["serialNumber", "productReference"], { productReference: null as unknown as number });
+    expect(columnByField.serialNumber).toBe(0);
+    expect(columnByField.productReference).toBeUndefined();
+  });
+
+  it("ignores an out-of-range override index rather than throwing", () => {
+    const { columnByField } = mapHeaders(["serialNumber", "productReference"], { serialNumber: 99 });
+    // Falls back to the auto-detected value since the override was invalid.
+    expect(columnByField.serialNumber).toBe(0);
+  });
+
+  it("an override can map a field the file's own headers don't name at all", () => {
+    const { columnByField } = mapHeaders(["col_a", "col_b"], { serialNumber: 0, productReference: 1 });
+    expect(columnByField).toEqual({ serialNumber: 0, productReference: 1 });
+  });
 });
 
 describe("extractRow", () => {

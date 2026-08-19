@@ -138,7 +138,8 @@ export interface HeaderMap {
   unknownColumns: string[];
 }
 
-export function mapHeaders(headerRow: string[]): HeaderMap {
+/** Auto-detects the mapping from a header row via alias matching — the default a UI pre-fills its editable mapping step with. */
+export function detectHeaders(headerRow: string[]): HeaderMap {
   const columnByField: Partial<Record<CanonicalField, number>> = {};
   const unknownColumns: string[] = [];
 
@@ -154,6 +155,36 @@ export function mapHeaders(headerRow: string[]): HeaderMap {
   });
 
   return { columnByField, unknownColumns };
+}
+
+/**
+ * Resolves the header mapping actually used to interpret a file: an
+ * explicit caller-supplied mapping (from the editable "assign columns" UI
+ * step) takes precedence field-by-field over auto-detection, so a user
+ * correcting just one misdetected column doesn't have to re-specify every
+ * other one. `override` values are column indices into `headerRow`; any
+ * index outside the row's bounds is ignored (falls back to auto-detected
+ * or unmapped) rather than throwing — invalid overrides surface as normal
+ * "column is required" validation errors downstream, not a hard failure.
+ */
+export function mapHeaders(headerRow: string[], override?: Partial<Record<string, number>>): HeaderMap {
+  const detected = detectHeaders(headerRow);
+  if (!override) return detected;
+
+  const columnByField: Partial<Record<CanonicalField, number>> = { ...detected.columnByField };
+  for (const field of CANONICAL_FIELDS) {
+    const overrideIndex = override[field];
+    if (overrideIndex === undefined) continue;
+    if (overrideIndex === null || (overrideIndex as unknown as string) === "") {
+      delete columnByField[field]; // explicit "no column for this field"
+      continue;
+    }
+    if (Number.isInteger(overrideIndex) && overrideIndex >= 0 && overrideIndex < headerRow.length) {
+      columnByField[field] = overrideIndex;
+    }
+  }
+
+  return { columnByField, unknownColumns: detected.unknownColumns };
 }
 
 export interface RawImportRow {

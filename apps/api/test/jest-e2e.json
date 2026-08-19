@@ -8,5 +8,6 @@
   },
   "setupFiles": ["<rootDir>/jest-e2e.setup.js"],
   "globalSetup": "<rootDir>/global-setup.js",
-  "testTimeout": 60000
+  "testTimeout": 60000,
+  "maxWorkers": 1
 }

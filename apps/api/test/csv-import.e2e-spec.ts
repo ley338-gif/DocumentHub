@@ -121,6 +121,65 @@ describe("CSV unit import (spec §33-35)", () => {
     expect(after).toBe(before); // preview must never persist
   });
 
+  it("returns the raw header row and the auto-detected mapping alongside the preview, for an editable mapping-review UI step", async () => {
+    const csv = ["serialNumber,productReference,Some Custom Column", `SN-MAP-000001,${productStableId},whatever`].join("\n");
+    const res = await uploadCsv(editorToken, orgId, csv).expect(201);
+    expect(res.body.headers).toEqual(["serialNumber", "productReference", "Some Custom Column"]);
+    expect(res.body.columnMapping).toEqual({ serialNumber: 0, productReference: 1 });
+    expect(res.body.unknownColumns).toEqual(["Some Custom Column"]);
+  });
+
+  it("a CSV whose headers auto-detection cannot recognize is rejected without an explicit mapping, then succeeds once one is supplied", async () => {
+    const csv = ["Col A,Col B", `SN-OVERRIDE-000001,${productStableId}`].join("\n");
+
+    const withoutMapping = await uploadCsv(editorToken, orgId, csv);
+    expect(withoutMapping.status).toBe(400);
+    expect(withoutMapping.body.error.code).toBe("FILE_VALIDATION_FAILED");
+
+    const withMapping = await request(http)
+      .post("/api/imports/units/preview")
+      .set(auth(editorToken, orgId))
+      .field("columnMapping", JSON.stringify({ serialNumber: 0, productReference: 1 }))
+      .attach("file", Buffer.from(csv, "utf-8"), { filename: "units.csv", contentType: "text/csv" })
+      .expect(201);
+
+    expect(withMapping.body.totalRows).toBe(1);
+    expect(withMapping.body.validRows).toHaveLength(1);
+    expect(withMapping.body.validRows[0].serialNumber).toBe("SN-OVERRIDE-000001");
+    expect(withMapping.body.columnMapping).toEqual({ serialNumber: 0, productReference: 1 });
+
+    // The corrected mapping is real, not cosmetic — it commits like any
+    // other validated preview.
+    const commit = await request(http)
+      .post(`/api/imports/units/${withMapping.body.importId}/commit`)
+      .set(auth(editorToken, orgId))
+      .expect(201);
+    expect(commit.body.importedCount).toBe(1);
+    const unit = await prisma.unit.findUniqueOrThrow({
+      where: { organizationId_serialNumber: { organizationId: orgId, serialNumber: "SN-OVERRIDE-000001" } },
+    });
+    expect(unit.productId).toBe(productId);
+  });
+
+  it("an override corrects a misdetected mapping even when both headers look auto-detectable", async () => {
+    // Headers named correctly, but the two columns are actually swapped in
+    // the data — the override tells the importer the true column for each
+    // field, proving the override (not header-name auto-detection) is what
+    // decides the result.
+    const swapped = ["serialNumber,productReference", `${productStableId},SN-PARTIAL-000001`].join("\n");
+
+    const res = await request(http)
+      .post("/api/imports/units/preview")
+      .set(auth(editorToken, orgId))
+      .field("columnMapping", JSON.stringify({ serialNumber: 1, productReference: 0 }))
+      .attach("file", Buffer.from(swapped, "utf-8"), { filename: "units.csv", contentType: "text/csv" })
+      .expect(201);
+
+    expect(res.body.validRows).toHaveLength(1);
+    expect(res.body.validRows[0].serialNumber).toBe("SN-PARTIAL-000001");
+    expect(res.body.validRows[0].productId).toBe(productId);
+  });
+
   it("commits a previewed import, creating exactly the valid rows with serial decomposition computed", async () => {
     const csv = [
       "serial_number,product_reference",
