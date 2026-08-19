@@ -5,9 +5,8 @@ shared design system, the authenticated app shell with a bare login flow,
 the public QR-scan pages, the authenticated Products and Documents admin
 screens (with the document revision lifecycle), the Applicability Rule
 Editor (builder + matrix, with a live backend preview), the Publish
-Wizard, the CSV unit import wizard, Publication History, and the Audit UI.
-Only real dashboard KPIs are deliberately not built yet — see "What's
-built" below.
+Wizard, the CSV unit import wizard, Publication History, the Audit UI, and
+a real Dashboard (KPI cards + recent-activity lists — see "Dashboard" below).
 
 ## Design invariant: this UI is a pure consumer of the backend's applicability logic
 
@@ -139,7 +138,7 @@ npm run preview      # serve the production build locally
 | `/u/:stableId` | none | Public unit page — mirrors `GET /u/:stableId`. |
 | `/login` | none | Login screen. |
 | `/app` | required | Authenticated app shell (sidebar + top bar). Redirects to `/login` if there's no valid session. |
-| `/app` (index) | required | Dashboard — placeholder only, still deferred. |
+| `/app` (index) | required | Dashboard — real KPI cards and recent-activity lists, see "Dashboard" below. |
 | `/app/products` | required | Products list — server-paginated, `Table`/`Pagination`. Editor+ sees an "Einheiten importieren" action here that opens the CSV import wizard (see below). |
 | `/app/products/import` | required, Editor+ | CSV unit import wizard — 4 steps (Datei → Spalten zuordnen → Prüfen → Importieren). See "CSV unit import" below. |
 | `/app/products/:id` | required | Product detail — tabs: Übersicht, Varianten, Einheiten, Dokumentation (read-only "currently applicable documents" via `GET /api/publications/resolve?productId=`), Öffentlicher Zugriff (stable ID, public URL, QR via authenticated blob fetch), Verlauf (placeholder, see below). Supports `?tab=<key>` to deep-link straight to a tab (e.g. `?tab=units`, used by the import wizard's post-commit "Zur Einheiten-Übersicht" link). |
@@ -223,6 +222,66 @@ Spalten zuordnen, 3 Prüfen, 4 Importieren) against
   `invalidRows.length`) always reflect the true, untruncated totals from
   the server.
 
+## Dashboard (`src/features/dashboard/DashboardPage.tsx`)
+
+Replaces the old "folgen in späteren Phasen" placeholder with a real
+dashboard built entirely from data already obtainable from existing
+`apps/api` endpoints — no new backend endpoints or routes were added for
+this. Every number is either a paginated list endpoint's cheap `total`
+(fetched with `pageSize: 1`, never by fetching and counting full pages) or
+the first page of an already-sorted list. Exact source per element:
+
+| Element | Endpoint | Field |
+| --- | --- | --- |
+| "Produkte" KPI | `GET /api/products?pageSize=1` | `.total` |
+| "Dokumente" KPI | `GET /api/documents?pageSize=1` | `.total` |
+| "Einheiten" KPI | `GET /api/units?pageSize=1` | `.total` |
+| "Aktive Veröffentlichungen" KPI | `GET /api/publications?status=ACTIVE&pageSize=1` | `.total` |
+| "Zuletzt veröffentlicht" list | `GET /api/publications?pageSize=5` | `.items` (already `orderBy: publishedAt desc` server-side, see `publications.controller.ts`) — document name/revision/language come from each item's frozen `.snapshot`, status from `StatusBadge`, row click navigates to `/app/publications?open=<id>` (the same deep-link Publication History already supports for the Audit UI's resource links) |
+| "Letzte Aktivität" list | `GET /api/audit?pageSize=5` (page 1) | `.items` (already `orderBy: timestamp desc` server-side) — labeled via the existing `auditEventLabel`/`resourceRoute` tables from the Audit UI, no new mapping logic |
+
+**Judgment calls / deliberately omitted:**
+
+- **"Einheiten" is a plain total, not an "active units" count.**
+  `GET /api/units` (`UnitListQueryDto` in `products.controller.ts`) only
+  accepts `productId`/`serialNumber` query params — no `status` filter —
+  even though `Unit.status` exists in the schema. Faking an active-only
+  count client-side would mean fetching and filtering every unit, exactly
+  the N+1-from-the-frontend pattern this phase avoids. Shown as a plain
+  total instead; adding a server-side `status` filter to `GET /api/units`
+  is a real, documented gap for a future backend phase.
+- **No "Revisionen in Review" / pending-review KPI.**
+  `GET /api/documents/:id/revisions` is per-document only — there is no
+  organization-wide revision list endpoint to get an org-wide `IN_REVIEW`
+  count from cheaply. Getting this number would require fetching every
+  document's revisions individually and counting client-side, which is
+  exactly the expensive N+1 pattern the brief rules out for this phase.
+  Rather than fake or estimate this number, it is simply not shown. A
+  future phase could add either a `GET /api/documents/:id/revisions`
+  org-wide variant or a `status` aggregate endpoint to make this cheap.
+- **No charts / trend lines** (e.g. the reference mockup's "Veröffentlichungen
+  (letzte 30 Tage)" line chart or "Dokumente nach Status" donut). Neither is
+  obtainable from a single cheap list-endpoint `total` — a real trend or a
+  per-status breakdown would need either client-side aggregation over every
+  row (not cheap once an org has thousands of documents/publications, see
+  the 5,000+ row import above) or a new backend aggregate endpoint, both
+  out of scope here. Documented as a gap rather than faked with placeholder
+  data.
+- **Per-section loading, not one page-level spinner.** The four KPI numbers
+  are fetched together (one `Promise.all`, one loading/error state) since
+  they're four cheap, closely-related `pageSize: 1` calls; the two
+  recent-activity lists each have their own independent loading/error
+  state and `onRetry`, since a slow/failing Audit fetch must not block the
+  KPI row or the Publications list from rendering.
+- **`StatTile` extracted to the design system.** The KPI cards reuse
+  `design-system/StatTile.tsx`, extracted from a page-local component of
+  the same name in the CSV Import wizard's Prüfen step
+  (`ImportWizardPage.tsx`) — that screen's summary counts (Gesamt/Gültig/
+  Ungültig/etc.) now import the shared component instead of a duplicate
+  local one. `StatTile` also gained an optional `icon` slot (an emoji,
+  matching the reference mockup's KPI cards) that the import wizard simply
+  doesn't pass.
+
 ## Design system (`src/design-system/`)
 
 Tokens (`tokens.css`) are CSS custom properties derived from the reference
@@ -239,8 +298,9 @@ triggering element on close — see "Dialog/Drawer a11y" below), `Pagination`,
 `Toast` (`ToastProvider` + `useToast()`), `Button`, `Input`, `Select`,
 `Spinner`, `EmptyState`, `LoadingState`, `ErrorState`, `DescriptionList` /
 `DescriptionItem` (see "Übersicht tab key-value layout" below), `WizardSteps`
-(see "Wizard step indicator" below). All are exported from
-`src/design-system/index.ts`.
+(see "Wizard step indicator" below), `StatTile` (see "Dashboard" above —
+extracted from the CSV Import wizard, now shared with the Dashboard's KPI
+cards). All are exported from `src/design-system/index.ts`.
 
 **These are the conventions this pass established — later phases (per-page
 polish, critical workflows, history/audit, dashboard, public page) should
@@ -569,7 +629,8 @@ src/
     auth/               auth-store.ts (Zustand), LoginPage, RequireAuth (route guard),
                         useCurrentRole (current org membership role)
     app-shell/           AppLayout — wires AppShell + Sidebar + org switcher for /app/*
-    dashboard/            placeholder DashboardPage
+    dashboard/            DashboardPage — real KPI cards + recent-activity
+                            lists, see "Dashboard" above
     products/              ProductsListPage, ProductDetailPage + tabs/, api.ts,
                             ManageFamiliesDialog, ManageBatchesDialog, CreateProductDialog
     documents/              DocumentsListPage, DocumentDetailPage + tabs/, api.ts
@@ -676,8 +737,12 @@ the whole org log), a dedicated revoke action in the Publication History UI
 itself (`revokePublication` exists in `features/publications/api.ts`, but
 no screen calls it yet — Publication History stays a pure read-only
 history view by design, matching the spec's read-only scope for this
-screen), the remaining admin screens (member management beyond what
-Organizations already expose), and the real dashboard (KPI tiles, charts).
+screen), and the remaining admin screens (member management beyond what
+Organizations already expose). The Dashboard (see "Dashboard" above) is
+now real but intentionally has no charts/trend lines and no org-wide
+"pending review" KPI — both need a new backend aggregate endpoint to do
+cheaply, which is out of scope for this UI-only phase; see "Dashboard"'s
+"deliberately omitted" notes.
 
 ### Known limitations in the Applicability Editor (documented judgment calls)
 
