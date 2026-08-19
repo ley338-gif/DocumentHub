@@ -96,7 +96,7 @@ export function FilesTab({ documentId, canWrite, onUploaded }: FilesTabProps) {
           Datei (PDF, max. 100 MB)
         </label>
         <input id="revision-file-input" type="file" accept="application/pdf" onChange={handleFileChange} required />
-        {fieldError && <p role="alert" style={{ color: "var(--color-danger, #c0392b)" }}>{fieldError}</p>}
+        {fieldError && <p role="alert" style={{ color: "var(--color-danger-text)" }}>{fieldError}</p>}
       </div>
       <div>
         <Button type="submit" disabled={uploading || !file || !revision.trim()}>

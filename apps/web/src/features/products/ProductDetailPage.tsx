@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { useNavigate, useParams, useSearchParams } from "react-router-dom";
-import { Button, PageHeader, Spinner, Tabs } from "../../design-system";
+import { Button, ErrorState, LoadingState, PageHeader, Tabs } from "../../design-system";
 import type { Product, ProductFamily } from "../../lib/api-types";
 import { ApiError } from "../../lib/api-error";
 import { hasRole } from "../../lib/roles";
@@ -60,12 +60,12 @@ export function ProductDetailPage() {
     };
   }, [id]);
 
-  if (loading) return <Spinner centered size={32} />;
+  if (loading) return <LoadingState label="Produkt wird geladen…" />;
   if (error || !product || !id) {
     return (
       <div>
-        <p role="alert">{error ?? "Produkt nicht gefunden."}</p>
-        <Button variant="secondary" onClick={() => navigate("/app/products")}>
+        <ErrorState error={error} fallback="Produkt nicht gefunden." />
+        <Button variant="secondary" onClick={() => navigate("/app/products")} style={{ marginTop: "1rem" }}>
           Zurück zur Übersicht
         </Button>
       </div>
@@ -77,11 +77,7 @@ export function ProductDetailPage() {
       <PageHeader
         title={product.name}
         subtitle={product.modelDesignation ?? undefined}
-        actions={
-          <Button variant="secondary" onClick={() => navigate("/app/products")}>
-            Zurück
-          </Button>
-        }
+        breadcrumbs={[{ label: "Produkte", to: "/app/products" }, { label: product.name }]}
       />
       <Tabs items={TABS} activeKey={activeTab} onChange={setActiveTab} />
       <div style={{ marginTop: "1.5rem" }}>

@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
-import { Button, PageHeader, Spinner, Tabs } from "../../design-system";
+import { Button, ErrorState, LoadingState, PageHeader, Tabs } from "../../design-system";
 import type { DocumentDto, DocumentRevisionDto } from "../../lib/api-types";
 import { ApiError } from "../../lib/api-error";
 import { hasRole } from "../../lib/roles";
@@ -54,12 +54,12 @@ export function DocumentDetailPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [id]);
 
-  if (loading) return <Spinner centered size={32} />;
+  if (loading) return <LoadingState label="Dokument wird geladen…" />;
   if (error || !doc || !id) {
     return (
       <div>
-        <p role="alert">{error ?? "Dokument nicht gefunden."}</p>
-        <Button variant="secondary" onClick={() => navigate("/app/documents")}>
+        <ErrorState error={error} fallback="Dokument nicht gefunden." />
+        <Button variant="secondary" onClick={() => navigate("/app/documents")} style={{ marginTop: "1rem" }}>
           Zurück zur Übersicht
         </Button>
       </div>
@@ -71,11 +71,7 @@ export function DocumentDetailPage() {
       <PageHeader
         title={doc.name}
         subtitle={doc.documentType}
-        actions={
-          <Button variant="secondary" onClick={() => navigate("/app/documents")}>
-            Zurück
-          </Button>
-        }
+        breadcrumbs={[{ label: "Dokumente", to: "/app/documents" }, { label: doc.name }]}
       />
       <Tabs items={TABS} activeKey={activeTab} onChange={setActiveTab} />
       <div style={{ marginTop: "1.5rem" }}>

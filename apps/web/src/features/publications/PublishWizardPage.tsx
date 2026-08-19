@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
-import { Badge, Button, PageHeader, Spinner, useToast } from "../../design-system";
+import { Badge, Button, ErrorState, LoadingState, PageHeader, Spinner, useToast } from "../../design-system";
 import type { ApplicabilityRuleDto, DocumentDto, DocumentRevisionDto, PublishPreviewDto } from "../../lib/api-types";
 import { ApiError } from "../../lib/api-error";
 import { languageLabel } from "../../lib/format";
@@ -98,13 +98,13 @@ export function PublishWizardPage() {
     }
   }
 
-  if (!documentId || !revisionId) return <p role="alert">Ungültiger Aufruf.</p>;
-  if (loading) return <Spinner centered size={32} />;
+  if (!documentId || !revisionId) return <ErrorState error="Ungültiger Aufruf." />;
+  if (loading) return <LoadingState label="Wird geladen…" />;
   if (loadError || !doc || !revision) {
     return (
       <div>
-        <p role="alert">{loadError ?? "Nicht gefunden."}</p>
-        <Button variant="secondary" onClick={() => navigate(`/app/documents/${documentId}`)}>
+        <ErrorState error={loadError} fallback="Nicht gefunden." />
+        <Button variant="secondary" onClick={() => navigate(`/app/documents/${documentId}`)} style={{ marginTop: "1rem" }}>
           Zurück
         </Button>
       </div>
@@ -151,6 +151,11 @@ export function PublishWizardPage() {
       <PageHeader
         title="Revision veröffentlichen"
         subtitle={`${doc.name} · ${revision.revision} (${languageLabel(revision.language)})`}
+        breadcrumbs={[
+          { label: "Dokumente", to: "/app/documents" },
+          { label: doc.name, to: `/app/documents/${documentId}` },
+          { label: "Revision veröffentlichen" },
+        ]}
         actions={
           <Button variant="secondary" onClick={() => navigate(`/app/documents/${documentId}`)}>
             Abbrechen
@@ -189,7 +194,7 @@ export function PublishWizardPage() {
       {step === "applicability" && (
         <div>
           <h3>Anwendbarkeitsregeln dieser Revision</h3>
-          <p style={{ color: "var(--color-text-secondary, #666)" }}>
+          <p style={{ color: "var(--color-text-secondary)" }}>
             Nur lesend — um Regeln zu ändern, brechen Sie ab und wechseln Sie zum Tab „Anwendbarkeit“ des Dokuments.
           </p>
           {rules.length === 0 && <p>Keine Anwendbarkeitsregeln (die Revision gilt dann uneingeschränkt).</p>}
@@ -262,7 +267,7 @@ export function PublishWizardPage() {
                 {languageLabel(revision.language)}) wird jetzt veröffentlicht.
               </p>
               {hasRealConflicts && (
-                <p role="alert" style={{ color: "var(--color-danger, #d92d20)", fontWeight: 600 }}>
+                <p role="alert" style={{ color: "var(--color-danger-text)", fontWeight: 600 }}>
                   Veröffentlichung blockiert: Es bestehen Konflikte laut letzter Vorschau (Schritt 4). Beheben Sie die
                   Konflikte, bevor Sie erneut versuchen.
                 </p>

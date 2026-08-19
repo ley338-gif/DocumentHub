@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { Button, PageHeader, Pagination, StatusBadge, Table, type TableColumn } from "../../design-system";
+import { Button, EmptyState, ErrorState, PageHeader, Pagination, StatusBadge, Table, type TableColumn } from "../../design-system";
 import type { Product, ProductFamily } from "../../lib/api-types";
 import { usePaginated } from "../../lib/use-paginated";
 import { useCurrentRole } from "../auth/useCurrentRole";
@@ -66,14 +66,24 @@ export function ProductsListPage() {
         }
       />
 
-      {error && <p role="alert">{error}</p>}
+      {error && <ErrorState error={error} fallback="Produkte konnten nicht geladen werden." onRetry={reload} />}
 
       <Table
         columns={columns}
         rows={items}
         rowKey={(p) => p.id}
         onRowClick={(p) => navigate(`/app/products/${p.id}`)}
-        emptyMessage={loading ? "Lädt…" : "Keine Produkte vorhanden."}
+        emptyMessage={
+          loading ? (
+            "Lädt…"
+          ) : (
+            <EmptyState
+              title="Keine Produkte vorhanden"
+              description="Legen Sie Ihr erstes Produkt an, um mit der Dokumentation zu beginnen."
+              action={canWrite ? <Button onClick={() => setCreateOpen(true)}>Neues Produkt</Button> : undefined}
+            />
+          )
+        }
       />
 
       <Pagination page={page} pageSize={pageSize} total={total} onPageChange={setPage} />

@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { Button, PageHeader, Pagination, StatusBadge, Table, type TableColumn } from "../../design-system";
+import { Button, EmptyState, ErrorState, PageHeader, Pagination, StatusBadge, Table, type TableColumn } from "../../design-system";
 import type { DocumentDto, DocumentRevisionDto } from "../../lib/api-types";
 import { languageLabel } from "../../lib/format";
 import { usePaginated } from "../../lib/use-paginated";
@@ -73,14 +73,24 @@ export function DocumentsListPage() {
         actions={canWrite ? <Button onClick={() => setCreateOpen(true)}>Neues Dokument</Button> : undefined}
       />
 
-      {error && <p role="alert">{error}</p>}
+      {error && <ErrorState error={error} fallback="Dokumente konnten nicht geladen werden." onRetry={reload} />}
 
       <Table
         columns={columns}
         rows={items}
         rowKey={(d) => d.id}
         onRowClick={(d) => navigate(`/app/documents/${d.id}`)}
-        emptyMessage={loading ? "Lädt…" : "Keine Dokumente vorhanden."}
+        emptyMessage={
+          loading ? (
+            "Lädt…"
+          ) : (
+            <EmptyState
+              title="Keine Dokumente vorhanden"
+              description="Laden Sie Ihr erstes Dokument hoch, um es Produkten zuzuordnen."
+              action={canWrite ? <Button onClick={() => setCreateOpen(true)}>Neues Dokument</Button> : undefined}
+            />
+          )
+        }
       />
 
       <Pagination page={page} pageSize={pageSize} total={total} onPageChange={setPage} />
