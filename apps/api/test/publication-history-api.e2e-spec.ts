@@ -93,7 +93,6 @@ describe("Publication History API: filters, actor names, and frozen historical d
   // what Publication History shows for that historical publication.
   // -----------------------------------------------------------------------
   let renameTestPublicationId: string;
-  let renameTestPublicationStableId: string;
 
   it("freezes the product name at publish time — a later rename does not change the historical snapshot", async () => {
     const rev = await uploadRevision(adminToken, orgId, documentId, "1.0", "DE");
@@ -106,7 +105,6 @@ describe("Publication History API: filters, actor names, and frozen historical d
 
     const publishRes = await request(http).post("/api/publications").set(auth(adminToken, orgId)).send({ revisionId: rev.id }).expect(201);
     renameTestPublicationId = publishRes.body.id;
-    renameTestPublicationStableId = publishRes.body.stableId;
 
     // Sanity: right after publish, the frozen rule carries "PumpMaster 400".
     const beforeRename = await request(http).get(`/api/publications/${renameTestPublicationId}`).set(auth(adminToken, orgId)).expect(200);
