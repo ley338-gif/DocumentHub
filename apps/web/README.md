@@ -230,11 +230,136 @@ mockups in `images/*.png` — color, spacing, radii, typography scale,
 shadows. Components are plain React + CSS Modules (one `.module.css` per
 component), mobile-first:
 
-`AppShell`, `Sidebar`, `PageHeader`, `Tabs`, `Table` (generic, column-driven,
-no built-in fetching), `FilterBar`, `Badge` / `StatusBadge`, `Dialog`,
-`Drawer`, `Pagination`, `Toast` (`ToastProvider` + `useToast()`), `Button`,
-`Input`, `Select`, `Spinner`. All are exported from
-`src/design-system/index.ts`.
+`AppShell`, `Sidebar`, `PageHeader` (title/subtitle/actions, plus an
+optional `breadcrumbs` prop — see below), `Breadcrumbs`, `Tabs`, `Table`
+(generic, column-driven, no built-in fetching; rows with `onRowClick` are
+keyboard-focusable and Enter/Space-activatable), `FilterBar`, `Badge` /
+`StatusBadge`, `Dialog`, `Drawer` (both trap focus and restore it to the
+triggering element on close — see "Dialog/Drawer a11y" below), `Pagination`,
+`Toast` (`ToastProvider` + `useToast()`), `Button`, `Input`, `Select`,
+`Spinner`, `EmptyState`, `LoadingState`, `ErrorState`. All are exported
+from `src/design-system/index.ts`.
+
+**These are the conventions this pass established — later phases (per-page
+polish, critical workflows, history/audit, dashboard, public page) should
+extend this system rather than inventing a parallel one:**
+
+### Status color mapping (`Badge`/`StatusBadge`)
+
+One tone table, `STATUS_TONE` in `Badge.tsx`, is the single source of truth
+for how any backend status string is colored — never inline a hex color or
+a second mapping elsewhere:
+
+| Tone | Statuses | Meaning |
+| --- | --- | --- |
+| `success` (green) | `ACTIVE`, `APPROVED`, `PUBLISHED`, `"Gültig"` | live/good state |
+| `neutral` (grey) | `DRAFT`, `RETIRED`, `SUPERSEDED` | inert/no-action-needed state |
+| `info` (blue) | `IN_REVIEW` | in-progress state |
+| `warning` (amber) | `INVITED` | pending-action state |
+| `danger` (red) | `REVOKED`, `SUSPENDED`, `EXPIRED` | stopped/problem state |
+
+Any status string not in the table falls back to `neutral` rather than
+throwing, so a new backend status never breaks rendering — but it should
+still be added to the table deliberately rather than left on the fallback.
+Use `<StatusBadge status={raw} />` (colors by the raw backend value) or
+`<StatusBadge status={raw} label={germanLabel} />` when the raw value
+shouldn't be shown verbatim (e.g. `RevisionsTab.tsx`'s `STATUS_LABEL` map)
+— coloring always stays keyed off the real status, only the text changes.
+
+### Button hierarchy (`Button`)
+
+Variants: `primary` (exactly one per view — "the one main action"),
+`secondary` (everything else actionable, including "Abbrechen"/"Zurück"),
+`outline` (secondary-weight actions that want less visual weight still,
+e.g. header utility actions like "Produktfamilien verwalten"), `ghost`
+(lowest-emphasis inline actions, e.g. a per-row "Bearbeiten"/"Herunterladen"
+button inside a table), `danger` (destructive/irreversible actions —
+revoke, delete, retire; red background, used at minimum for the Revisions
+tab's "Zurückziehen" and the Applicability rule editor's "Löschen"). This
+pass audited every `<Button>` call site across `src/features/` and found
+the hierarchy already consistently applied — no `secondary`-styled delete
+buttons or competing-primary bugs were found; the `danger` variant already
+existed and was already wired to the two real destructive actions above.
+
+### Breadcrumbs (`Breadcrumbs`, `PageHeader`'s `breadcrumbs` prop)
+
+`Breadcrumbs` (`design-system/Breadcrumbs.tsx`) takes `items:
+{ label, to? }[]` — omit `to` on the last (current-page) item. Pass it to
+`PageHeader` via `breadcrumbs={[...]}`, rendered above the title; it
+replaces a page's old plain "Zurück"/"Zurück zur Übersicht" navigation
+button (removed from `ProductDetailPage`, `DocumentDetailPage`, and
+`PublishWizardPage`'s header actions in this pass — their normal-state
+"go back" button was redundant once the breadcrumb trail exists; error
+states there still keep a plain fallback button since there's no product/
+document name to build a breadcrumb from). A page-level "Abbrechen" button
+that performs a real action (e.g. the Publish Wizard's) is *not* replaced
+by breadcrumbs — breadcrumbs are for hierarchy navigation, not for
+cancel/confirm actions. Only these three pages were wired up in this pass;
+retrofitting the remaining detail-ish views is explicitly left to later
+phases (see task brief) — follow the same `{ label, to? }[]` shape and the
+same "keep a real action button, drop a pure-navigation one" rule.
+
+### Empty / loading / error states
+
+- `EmptyState` — `title` (required), optional `icon`/`description`/`action`.
+  Pass it as a `Table`'s `emptyMessage` (it renders fine inside the table's
+  centered empty `<td>`) whenever a list can be legitimately empty, with an
+  `action` button when there's an obvious next step (e.g. "Neues Produkt").
+  Reserve a bare string `emptyMessage` for the transient "Lädt…" case.
+- `LoadingState` — wraps `Spinner` with one consistent centered
+  size/spacing convention for a whole view/section being loading. Keep a
+  bare inline `<Spinner size={..} />` (no wrapper) only for small
+  in-context indicators next to other content (e.g. inside a preview panel
+  that's still loading while the rest of the page is interactive).
+- `ErrorState` — **the one correct way to render a caught error.** Pass
+  `error={caughtErrorOrString}` and it renders `ApiError.userMessage` (the
+  German, user-safe message) when given an `ApiError`, the string as-is
+  when given one, or a German `fallback` otherwise — never a raw error code
+  or English backend message. Optional `onRetry`/`retryLabel` add a retry
+  button. This pass converted 5 real call sites across 3 feature areas
+  (`ProductsListPage`, `DocumentsListPage` in products/documents;
+  `ProductDetailPage`, `DocumentDetailPage`; `PublicationHistoryPage`,
+  `AuditLogPage`, `PublishWizardPage` in publications/audit) from a bare
+  `<p role="alert">{error}</p>` to `<ErrorState .../>`. The many remaining
+  `<p role="alert">{message}</p>` sites (mostly inline business-rule
+  messages, e.g. "nur APPROVED Revisionen können veröffentlicht werden",
+  which aren't caught exceptions) were deliberately left alone — only
+  genuine caught-error rendering should move to `ErrorState`.
+
+### Dialog/Drawer a11y (`useFocusTrap`)
+
+Both `Dialog` and `Drawer` use the shared `useFocusTrap(open, containerRef)`
+hook (`design-system/useFocusTrap.ts`): on open, focus moves into the panel
+— respecting a field's own `autoFocus` if one already claimed it, otherwise
+the first focusable element — and Tab/Shift+Tab is trapped inside the
+panel; on close, focus returns to whatever triggered the open. Escape-to-
+close was already wired up per-component and is unchanged. **Judgment call
+worth knowing about:** the trigger element must be captured during React's
+*render* phase (`if (open && !wasOpenRef.current) triggerRef.current =
+document.activeElement`), not inside a `useEffect` — a field's native
+`autoFocus` attribute is applied during React's commit phase, before
+passive effects run, so capturing inside an effect reliably grabs the
+wrong element (something already inside the just-opened panel) instead of
+the real trigger. Table rows with `onRowClick` were made keyboard-focusable
+(`tabIndex={0}`, `role="button"`, Enter/Space activation) specifically so
+this restore-focus behavior has something focusable to return to when a
+Drawer/Dialog was opened by clicking a table row.
+
+### Tokens (`tokens.css`)
+
+Already a real scale before this pass (spacing `--space-1`…`--space-12`,
+type `--font-size-xs`…`--font-size-2xl`, radii `--radius-sm/md/lg/full`,
+the full status color set above). This pass's actual finding: several
+feature files had drifted into inline `style={{ color: "var(--color-token,
+#hardcodedhex)" }}` fallbacks, some referencing tokens that don't exist at
+all (`--color-danger` — the real token is `--color-danger-text`;
+`--color-surface-subtle` — the real token is `--color-surface-muted`). Fixed
+across `PublishWizardPage.tsx`, `FilesTab.tsx`, `PublicationHistoryPage.tsx`,
+`AuditLogPage.tsx`, `ImportWizardPage.tsx`, and the `applicability/*`
+files to reference the real token with no hardcoded fallback. **Convention
+going forward: never add a hex fallback to a `var(--token, #hex)` — if the
+token doesn't already exist in `tokens.css`, add it there, don't
+work around it inline.**
 
 ## Application code layout
 
