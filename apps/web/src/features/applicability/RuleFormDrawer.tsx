@@ -83,7 +83,7 @@ export function RuleFormDrawer({ open, onClose, revisionId, editingRule, onSaved
             {saving ? "Speichern…" : "Speichern"}
           </Button>
         </div>
-        <p style={{ margin: 0, fontSize: "0.8rem", color: "var(--color-text-secondary, #666)" }}>
+        <p style={{ margin: 0, fontSize: "0.8rem", color: "var(--color-text-secondary)" }}>
           Nach dem Speichern aktualisiert sich die Backend-Vorschau (betroffene Einheiten, Spezifität, Konflikte)
           automatisch.
         </p>

@@ -49,7 +49,7 @@ export function DocumentationTab({ productId }: DocumentationTabProps) {
 
   return (
     <div>
-      <p style={{ color: "var(--color-text-secondary, #666)", marginBottom: "1rem" }}>
+      <p style={{ color: "var(--color-text-secondary)", marginBottom: "1rem" }}>
         Aktuell für dieses Produkt anwendbare Dokumente (per Auflösung der Anwendbarkeitsregeln, keine direkte
         Eigentümerschaft im Datenmodell).
       </p>

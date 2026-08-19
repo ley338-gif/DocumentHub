@@ -312,7 +312,7 @@ function FileStep({
   return (
     <div>
       <h3>CSV-Datei auswählen</h3>
-      <p style={{ color: "var(--color-text-secondary, #666)" }}>
+      <p style={{ color: "var(--color-text-secondary)" }}>
         Die Datei muss mindestens Spalten für Seriennummer und Produktreferenz enthalten. Im nächsten Schritt können
         Sie die Spaltenzuordnung prüfen und bei Bedarf korrigieren.
       </p>
@@ -367,7 +367,7 @@ function MappingStep({
           Seriennummer und Produktreferenz manuell einer Spalte zu.
         </p>
       ) : (
-        <p style={{ color: "var(--color-text-secondary, #666)" }}>
+        <p style={{ color: "var(--color-text-secondary)" }}>
           Automatisch erkannte Zuordnung aus den Kopfzeilen Ihrer Datei. Sie können jede Zuordnung ändern —
           Seriennummer und Produktreferenz sind erforderlich.
         </p>
@@ -395,7 +395,7 @@ function MappingStep({
           );
         })}
       </div>
-      <p style={{ marginTop: "0.75rem", fontSize: "0.85rem", color: "var(--color-text-secondary, #666)" }}>
+      <p style={{ marginTop: "0.75rem", fontSize: "0.85rem", color: "var(--color-text-secondary)" }}>
         * Pflichtfeld. Fehlt eine erforderliche Zuordnung, meldet der Server dies beim nächsten Schritt.
       </p>
       {previewLoading && <Spinner size={24} />}
@@ -474,7 +474,7 @@ function ReviewStep({ preview }: { preview: ImportPreviewResponseDto }) {
       {preview.invalidRows.length > 0 && (
         <>
           <h4>Fehlerhafte Zeilen{remainingErrors > 0 ? ` (erste ${ERROR_LIST_CAP} von ${preview.invalidRows.length})` : ""}</h4>
-          <ul style={{ maxHeight: "16rem", overflowY: "auto", border: "1px solid var(--color-border, #ddd)", padding: "0.5rem 1rem", borderRadius: 4 }}>
+          <ul style={{ maxHeight: "16rem", overflowY: "auto", border: "1px solid var(--color-border)", padding: "0.5rem 1rem", borderRadius: 4 }}>
             {shownErrors.map((r) => (
               <li key={r.row}>
                 Zeile {r.row}: {r.errors.join(", ")}
@@ -555,7 +555,7 @@ function CommitStep({
           </>
         )}
       </p>
-      <p style={{ color: "var(--color-text-secondary, #666)" }}>
+      <p style={{ color: "var(--color-text-secondary)" }}>
         Vor diesem Klick wurde noch nichts in der Datenbank gespeichert — dieser Schritt importiert genau die zuvor
         geprüfte Menge, nicht mehr und nicht weniger.
       </p>

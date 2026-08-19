@@ -142,7 +142,7 @@ export function ScopeFields({ value, onChange }: ScopeFieldsProps) {
           onChange={(e) => set("serialTo", e.target.value)}
         />
       </div>
-      <p style={{ margin: 0, fontSize: "0.8rem", color: "var(--color-text-secondary, #666)" }}>
+      <p style={{ margin: 0, fontSize: "0.8rem", color: "var(--color-text-secondary)" }}>
         Rohe Zeichenketten — das Backend übernimmt Präfix-/Sequenz-Auswertung und Validierung. Es findet hier keine
         Formatprüfung außer „nicht leer“ statt.
       </p>

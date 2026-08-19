@@ -86,7 +86,7 @@ export function RuleBuilderView({
       )}
 
       {!canPreview && (
-        <p style={{ color: "var(--color-text-secondary, #666)", marginBottom: "1rem" }}>
+        <p style={{ color: "var(--color-text-secondary)", marginBottom: "1rem" }}>
           Als Betrachter sehen Sie die Regelliste, aber keine Live-Vorschau (betroffene Einheiten, Spezifität,
           Konflikte) — die Vorschau-API erfordert mindestens die Rolle Editor.
         </p>
@@ -109,7 +109,7 @@ export function RuleBuilderView({
         </div>
       )}
       {canPreview && preview && preview.sampleSerials.length > 0 && (
-        <p style={{ marginTop: "-0.5rem", marginBottom: "1rem", color: "var(--color-text-secondary, #666)" }}>
+        <p style={{ marginTop: "-0.5rem", marginBottom: "1rem", color: "var(--color-text-secondary)" }}>
           Beispiel-Seriennummern: {preview.sampleSerials.join(", ")}
         </p>
       )}
@@ -127,7 +127,7 @@ export function RuleBuilderView({
             <li
               key={rule.id}
               style={{
-                border: `1px solid ${hasRealConflict ? "var(--color-danger, #d92d20)" : "var(--color-border, #ddd)"}`,
+                border: `1px solid ${hasRealConflict ? "var(--color-danger-text)" : "var(--color-border)"}`,
                 borderRadius: 8,
                 padding: "0.75rem 1rem",
                 display: "flex",

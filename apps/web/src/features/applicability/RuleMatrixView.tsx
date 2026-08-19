@@ -107,7 +107,7 @@ export function RuleMatrixView({ canPreview, rules, preview, previewLoading }: R
   return (
     <div>
       {!canPreview && (
-        <p style={{ color: "var(--color-text-secondary, #666)", marginBottom: "1rem" }}>
+        <p style={{ color: "var(--color-text-secondary)", marginBottom: "1rem" }}>
           Als Betrachter sehen Sie die Regelliste ohne Spezifität/betroffene Einheiten/Konfliktstatus — diese Zahlen
           kommen aus der Editor+-geschützten Vorschau-API.
         </p>

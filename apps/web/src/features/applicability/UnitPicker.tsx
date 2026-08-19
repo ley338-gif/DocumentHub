@@ -64,7 +64,7 @@ export function UnitPicker({ productId, unitId, unitSerialNumber, onChange }: Un
           </Button>
         </div>
       ) : (
-        <p style={{ margin: "0 0 0.5rem", fontSize: "0.8rem", color: "var(--color-text-secondary, #666)" }}>
+        <p style={{ margin: "0 0 0.5rem", fontSize: "0.8rem", color: "var(--color-text-secondary)" }}>
           Keine Einheit ausgewählt (keine Einschränkung auf eine einzelne Einheit).
         </p>
       )}
@@ -76,7 +76,7 @@ export function UnitPicker({ productId, unitId, unitSerialNumber, onChange }: Un
       )}
 
       {browsing && (
-        <div style={{ border: "1px solid var(--color-border, #ddd)", borderRadius: 8, padding: "0.75rem", marginTop: "0.5rem" }}>
+        <div style={{ border: "1px solid var(--color-border)", borderRadius: 8, padding: "0.75rem", marginTop: "0.5rem" }}>
           <div style={{ display: "flex", gap: "0.5rem", alignItems: "flex-end", marginBottom: "0.5rem" }}>
             <Input
               label="Exakte Seriennummer (optional)"
