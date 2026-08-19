@@ -10,6 +10,7 @@ import { TenantContext, AuthenticatedUser } from "../common/request-context";
 import { normalizePagination, toPaginated } from "../common/pagination";
 import { PublishService } from "./publish.service";
 import { PublicationResolverService } from "./resolver.service";
+import { PublishPreviewService } from "./publish-preview.service";
 import { PublicationListQueryDto, PublishRevisionDto, ResolveQueryDto } from "./dto/publications-dtos";
 
 @UseGuards(JwtAuthGuard, TenantGuard, RolesGuard)
@@ -19,6 +20,7 @@ export class PublicationsController {
     private readonly prisma: PrismaService,
     private readonly publish: PublishService,
     private readonly resolver: PublicationResolverService,
+    private readonly preview: PublishPreviewService,
   ) {}
 
   @Roles("VIEWER")
@@ -50,6 +52,12 @@ export class PublicationsController {
       language: query.language,
       effectiveAt: query.effectiveAt ? new Date(query.effectiveAt) : new Date(),
     });
+  }
+
+  @Roles("EDITOR")
+  @Get("preview/:revisionId")
+  publishPreview(@Tenant() tenant: TenantContext, @Param("revisionId") revisionId: string) {
+    return this.preview.preview(tenant.organizationId, revisionId);
   }
 
   @Roles("PUBLISHER")
