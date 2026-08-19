@@ -117,7 +117,10 @@ async function main() {
     headers: orgHeaders(),
     body: form,
   }).then((r) => r.json());
-  check("CSV preview accepted 5,000 rows", previewRes.totalRows === 5000 && previewRes.validRows === 5000);
+  check(
+    `CSV preview accepted 5,000 rows (totalRows=${previewRes.totalRows}, validRows=${previewRes.validRows})`,
+    previewRes.totalRows === 5000 && previewRes.validRows === 5000,
+  );
   const importId = previewRes.importId;
   const commitRes = await tReq(`/api/imports/units/${importId}/commit`, { method: "POST" });
   check("CSV commit succeeded", commitRes.ok);
@@ -149,10 +152,14 @@ async function main() {
   const stayPub = await tReq("/api/publications", { method: "POST", body: { revisionId: stayRevision.id } }).then((r) => r.body);
   check("control-group publication published", !!stayPub.id);
 
-  // --- 3. Second revision of the ORIGINAL document -> supersedes the ---
-  //        first publication; used for historical resolution + revoke.
-  log("Publishing a second revision of the original document (supersedes the first)...");
-  const beforeSecondPublish = new Date().toISOString();
+  // --- 3. Second revision of the ORIGINAL document ----------------------
+  // The system does NOT auto-supersede an active publication just because
+  // a new revision of the same document is published at equal
+  // specificity — conflict-detection treats that as a genuine conflict
+  // (APPLICABILITY_CONFLICT) rather than silently picking a winner. The
+  // real, correct workflow is: revoke the old publication, then publish
+  // the new one. Verify the conflict gate first, then follow that flow.
+  log("Uploading + approving a second revision of the original document...");
   const rev2Content = makeMinimalPdf(`Second revision, ${Date.now()}`);
   const rev2Form = new FormData();
   rev2Form.append("revision", "B");
@@ -166,17 +173,33 @@ async function main() {
   await tReq(`/api/documents/revisions/${rev2.id}/applicability-rules`, { method: "POST", body: { productId: state.product.id } });
   await tReq(`/api/documents/${state.document.id}/revisions/${rev2.id}/submit`, { method: "PATCH" });
   await tReq(`/api/documents/${state.document.id}/revisions/${rev2.id}/approve`, { method: "PATCH" });
-  const afterFirstPublishBeforeSecond = beforeSecondPublish;
-  const pub2 = await tReq("/api/publications", { method: "POST", body: { revisionId: rev2.id } }).then((r) => r.body);
-  check("second revision published (supersedes first)", !!pub2.id && pub2.id !== state.publication.id);
 
-  // --- 4. Historical resolution across the supersede boundary ----------
-  log("Checking historical resolution across the supersede boundary...");
+  log("Confirming the conflict-detection quality gate blocks publishing over the still-active first publication...");
+  const previewConflict = await tReq(`/api/publications/preview/${rev2.id}`);
+  check(
+    "preview reports the conflict (canPublish=false) while the first publication is still active",
+    previewConflict.ok && previewConflict.body.canPublish === false,
+  );
+  const publishBlocked = await tReq("/api/publications", { method: "POST", body: { revisionId: rev2.id } });
+  check("publish is actually rejected (APPLICABILITY_CONFLICT) while the conflict exists", !publishBlocked.ok);
+
+  log("Revoking the first publication to make way for the second...");
+  const beforeFirstRevoke = new Date().toISOString();
+  const revoke1Res = await tReq(`/api/publications/${state.publication.id}/revoke`, { method: "PATCH" });
+  check("first publication revoked", revoke1Res.ok);
+
+  log("Publishing the second revision now that the slot is free...");
+  const pub2Res = await tReq("/api/publications", { method: "POST", body: { revisionId: rev2.id } });
+  check(`second revision published (status ${pub2Res.status})`, pub2Res.ok);
+  const pub2 = pub2Res.body;
+
+  // --- 4. Historical resolution across the revoke/publish boundary -----
+  log("Checking historical resolution across the revoke/publish boundary...");
   const historicalOld = await tReq(
-    `/api/publications/resolve?unitId=${state.unit.id}&effectiveAt=${encodeURIComponent(afterFirstPublishBeforeSecond)}`,
+    `/api/publications/resolve?unitId=${state.unit.id}&effectiveAt=${encodeURIComponent(beforeFirstRevoke)}`,
   );
   const foundOld = historicalOld.ok && historicalOld.body.resolved?.some((s) => s.publicationId === state.publication.id);
-  check("resolution just before the second publish still finds the FIRST publication", !!foundOld);
+  check("resolution just before the revoke still finds the FIRST publication", !!foundOld);
 
   const historicalNew = await tReq(`/api/publications/resolve?unitId=${state.unit.id}&effectiveAt=${encodeURIComponent(new Date().toISOString())}`);
   const foundNew = historicalNew.ok && historicalNew.body.resolved?.some((s) => s.publicationId === pub2.id);
