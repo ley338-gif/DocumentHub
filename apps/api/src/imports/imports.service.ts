@@ -58,11 +58,33 @@ export class ImportsService {
     // Auto-detected unless the caller (the mapping-review UI step) supplies
     // an explicit override — see mapHeaders' doc comment.
     const headers = mapHeaders(allRows[0], columnMappingOverride);
+
+    // Even when we're about to reject the file for missing a required
+    // column, the raw header row and whatever mapping WAS resolved are
+    // attached to the error's `details` — this is exactly what a
+    // mapping-review UI step needs to render its column pickers so the
+    // user can fix the mapping. Without this, a frontend would have to
+    // re-parse the CSV's header row itself just to populate that step,
+    // which risks disagreeing with this service's own CSV parsing (e.g. a
+    // naive comma-split doesn't handle quoted headers containing commas
+    // the way parseCsvText does) — the exact kind of drift this project
+    // avoids elsewhere by keeping one implementation as the source of
+    // truth. The success response returns the same two fields for the
+    // same reason (see ImportPreviewResponseDto).
+    const headerFailureDetails = { headers: allRows[0], columnMapping: headers.columnByField, unknownColumns: headers.unknownColumns };
     if (headers.columnByField.serialNumber === undefined) {
-      throw new AppError("FILE_VALIDATION_FAILED", "CSV must include a serialNumber (or serial_number) column");
+      throw new AppError(
+        "FILE_VALIDATION_FAILED",
+        "CSV must include a serialNumber (or serial_number) column",
+        headerFailureDetails,
+      );
     }
     if (headers.columnByField.productReference === undefined) {
-      throw new AppError("FILE_VALIDATION_FAILED", "CSV must include a productReference (or product) column");
+      throw new AppError(
+        "FILE_VALIDATION_FAILED",
+        "CSV must include a productReference (or product) column",
+        headerFailureDetails,
+      );
     }
 
     // Real file line numbers (header = line 1) while skipping blank lines,
