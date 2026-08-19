@@ -1,0 +1,79 @@
+.list {
+  display: flex;
+  align-items: flex-start;
+  list-style: none;
+  margin: 0 0 var(--space-6);
+  padding: 0;
+  overflow-x: auto;
+}
+
+.item {
+  display: flex;
+  align-items: flex-start;
+  flex: 1 1 0;
+  min-width: 6rem;
+}
+
+.item:last-child {
+  flex: 0 0 auto;
+}
+
+.stepColumn {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--space-2);
+  min-width: 5rem;
+}
+
+.circle {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  width: 2rem;
+  height: 2rem;
+  border-radius: var(--radius-full);
+  font-size: var(--font-size-sm);
+  font-weight: var(--font-weight-semibold);
+  border: 2px solid var(--color-border-strong);
+  background: var(--color-surface);
+  color: var(--color-text-secondary);
+}
+
+.circleCurrent {
+  border-color: var(--color-primary-600);
+  background: var(--color-primary-600);
+  color: var(--color-text-inverse);
+}
+
+.circleDone {
+  border-color: var(--color-success-border);
+  background: var(--color-success-bg);
+  color: var(--color-success-text);
+}
+
+.label {
+  font-size: var(--font-size-xs);
+  font-weight: var(--font-weight-medium);
+  color: var(--color-text-secondary);
+  text-align: center;
+  white-space: nowrap;
+}
+
+.labelCurrent {
+  color: var(--color-text);
+  font-weight: var(--font-weight-semibold);
+}
+
+.connector {
+  flex: 1 1 auto;
+  height: 2px;
+  background: var(--color-border-strong);
+  margin-top: 1rem;
+  min-width: 1rem;
+}
+
+.connectorDone {
+  background: var(--color-success-border);
+}

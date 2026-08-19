@@ -1,6 +1,16 @@
 import { useEffect, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
-import { Badge, Button, ErrorState, LoadingState, PageHeader, Spinner, useToast } from "../../design-system";
+import {
+  Badge,
+  Button,
+  DescriptionList,
+  DescriptionItem,
+  ErrorState,
+  LoadingState,
+  PageHeader,
+  WizardSteps,
+  useToast,
+} from "../../design-system";
 import type { ApplicabilityRuleDto, DocumentDto, DocumentRevisionDto, PublishPreviewDto } from "../../lib/api-types";
 import { ApiError } from "../../lib/api-error";
 import { languageLabel } from "../../lib/format";
@@ -163,31 +173,18 @@ export function PublishWizardPage() {
         }
       />
 
-      <ol style={{ display: "flex", gap: "0.5rem", listStyle: "none", padding: 0, marginBottom: "1.5rem", flexWrap: "wrap" }}>
-        {STEPS.map((s, idx) => (
-          <li key={s.key}>
-            <Badge tone={idx === stepIndex ? "info" : idx < stepIndex ? "success" : "neutral"}>{s.label}</Badge>
-          </li>
-        ))}
-      </ol>
+      <WizardSteps steps={STEPS.map((s) => ({ key: s.key, label: s.label.replace(/^\d+\.\s*/, "") }))} currentIndex={stepIndex} />
 
       {step === "revision" && (
         <div>
           <h3>Zu veröffentlichende Revision</h3>
-          <dl>
-            <dt>Dokument</dt>
-            <dd>{doc.name} ({doc.documentType})</dd>
-            <dt>Revision</dt>
-            <dd>{revision.revision}</dd>
-            <dt>Sprache</dt>
-            <dd>{languageLabel(revision.language)}</dd>
-            <dt>Status</dt>
-            <dd>
-              <Badge tone="success">{revision.status}</Badge>
-            </dd>
-            <dt>Datei</dt>
-            <dd>{revision.originalFilename}</dd>
-          </dl>
+          <DescriptionList>
+            <DescriptionItem label="Dokument" value={`${doc.name} (${doc.documentType})`} />
+            <DescriptionItem label="Revision" value={revision.revision} />
+            <DescriptionItem label="Sprache" value={languageLabel(revision.language)} />
+            <DescriptionItem label="Status" value={<Badge tone="success">{revision.status}</Badge>} />
+            <DescriptionItem label="Datei" value={revision.originalFilename} />
+          </DescriptionList>
         </div>
       )}
 
@@ -212,8 +209,8 @@ export function PublishWizardPage() {
       {step === "impact" && (
         <div>
           <h3>Auswirkung</h3>
-          {previewLoading && <Spinner size={28} />}
-          {previewError && <p role="alert">{previewError}</p>}
+          {previewLoading && <LoadingState label="Vorschau wird geladen…" />}
+          {previewError && <ErrorState error={previewError} onRetry={() => setPreviewFetchToken((t) => t + 1)} />}
           {preview && (
             <>
               <p style={{ fontSize: "1.1rem" }}>
@@ -237,8 +234,8 @@ export function PublishWizardPage() {
       {step === "conflicts" && (
         <div>
           <h3>Konflikte</h3>
-          {previewLoading && <Spinner size={28} />}
-          {previewError && <p role="alert">{previewError}</p>}
+          {previewLoading && <LoadingState label="Vorschau wird geladen…" />}
+          {previewError && <ErrorState error={previewError} onRetry={() => setPreviewFetchToken((t) => t + 1)} />}
           {preview && preview.conflicts.length === 0 && (
             <p>
               <Badge tone="success">Keine Konflikte</Badge> — diese Revision kann veröffentlicht werden, sofern sich
