@@ -145,14 +145,13 @@ describe("Publication History API: filters, actor names, and frozen historical d
   });
 
   it("Viewer can read publication history (list + detail)", async () => {
-    await registerAndLogin("viewer@pub-history.example", "Passw0rd!", "Viktor Viewer");
-    await request(http)
-      .post(`/api/organizations/${orgId}/members`)
+    const viewerToken = await registerAndLogin("viewer@pub-history.example", "Passw0rd!", "Viktor Viewer");
+    const invitation = await request(http)
+      .post(`/api/organizations/${orgId}/invitations`)
       .set(auth(adminToken, orgId))
       .send({ email: "viewer@pub-history.example", role: "VIEWER" })
       .expect(201);
-    const viewerLogin = await request(http).post("/api/auth/login").send({ email: "viewer@pub-history.example", password: "Passw0rd!" });
-    const viewerToken = viewerLogin.body.accessToken;
+    await request(http).post(`/api/invitations/${invitation.body.token}/accept`).set(auth(viewerToken)).send({}).expect(201);
 
     await request(http).get("/api/publications").set(auth(viewerToken, orgId)).expect(200);
     await request(http).get(`/api/publications/${renameTestPublicationId}`).set(auth(viewerToken, orgId)).expect(200);
@@ -275,14 +274,14 @@ describe("Audit API: actorId filter, search, and resolved actor names", () => {
   });
 
   it("Viewer can read audit; tenant isolation holds", async () => {
-    await registerAndLogin("viewer@audit-api.example", "Passw0rd!", "Audit Viewer");
-    await request(http)
-      .post(`/api/organizations/${orgId}/members`)
+    const viewerToken = await registerAndLogin("viewer@audit-api.example", "Passw0rd!", "Audit Viewer");
+    const invitation = await request(http)
+      .post(`/api/organizations/${orgId}/invitations`)
       .set(auth(adminToken, orgId))
       .send({ email: "viewer@audit-api.example", role: "VIEWER" })
       .expect(201);
-    const viewerLogin = await request(http).post("/api/auth/login").send({ email: "viewer@audit-api.example", password: "Passw0rd!" });
-    await request(http).get("/api/audit").set(auth(viewerLogin.body.accessToken, orgId)).expect(200);
+    await request(http).post(`/api/invitations/${invitation.body.token}/accept`).set(auth(viewerToken)).send({}).expect(201);
+    await request(http).get("/api/audit").set(auth(viewerToken, orgId)).expect(200);
 
     const otherToken = await registerAndLogin("owner@audit-api-other.example", "Passw0rd!", "Other Owner");
     const otherOrgRes = await request(http).post("/api/organizations").set(auth(otherToken)).send({ name: "Other Audit Org" }).expect(201);

@@ -142,11 +142,12 @@ describe("Publish preview (spec §46-47, §63-65)", () => {
     const rev = await uploadRevision(adminToken, orgId, documentId, "2.0", "DE");
 
     const viewerToken = await registerAndLogin("viewer@preview-test.example", "Passw0rd!", "Viewer");
-    await request(http)
-      .post(`/api/organizations/${orgId}/members`)
+    const invitation = await request(http)
+      .post(`/api/organizations/${orgId}/invitations`)
       .set(auth(adminToken, orgId))
       .send({ email: "viewer@preview-test.example", role: "VIEWER" })
       .expect(201);
+    await request(http).post(`/api/invitations/${invitation.body.token}/accept`).set(auth(viewerToken)).send({}).expect(201);
 
     await request(http).get(`/api/publications/preview/${rev.id}`).set(auth(viewerToken, orgId)).expect(403);
 
