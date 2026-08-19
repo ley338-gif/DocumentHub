@@ -98,6 +98,35 @@ Two things make this a *preview*, not a second implementation of publish:
   other active publication in the org for a preview is unnecessary
   complexity this MVP does not take on.
 
+Response shape includes both a `description` (plain-language German string,
+a presentation convenience) and a structured `scope` object per rule
+(`productFamilyId`/`productId`/`variantId`/`batchId`/`unitId` plus their
+resolved names, `serialFrom`/`serialTo`, `validFrom`/`validUntil`,
+`explicitExclusion`) — the description is not the source of truth, so a UI
+never has to parse it back apart to build an edit form, a future
+localization pass needs no backend change, and tests can assert on real
+fields instead of substring-matching prose.
+
+**Tenant isolation (IDOR):** the revision lookup is scoped by
+`{id: revisionId, organizationId}` using the *caller's* `organizationId`
+from `TenantGuard` (never a value from the request body/query), so
+requesting another organization's revision id returns a generic
+`NOT_FOUND` — identical to "doesn't exist" — never a 403 that would
+confirm the id belongs to someone else, and never any of that
+organization's data. Covered by `test/publish-preview-hardening.e2e-spec.ts`.
+
+**Domain-primitive parity:** `affected-units.ts`'s `ruleScopeToUnitWhere`
+translates a rule's scope into a SQL `WHERE` clause — a different
+execution strategy than `ruleScopeMatches` (specificity.ts), which
+evaluates the same scope as an in-memory predicate against one unit at a
+time (used by `PublicationResolverService` and conflict detection). Both
+must implement the *same* semantics from two different code paths, which
+is exactly the kind of thing that silently drifts over time. Rather than
+trust that by inspection, `publish-preview-hardening.e2e-spec.ts` cross-
+checks them against real data: for the same set of units and rules, it
+filters in-memory with `ruleScopeMatches` and counts in SQL with
+`countAffectedUnits`, and asserts the numbers agree.
+
 ## Immutability
 
 Once a `DocumentRevision` reaches `APPROVED` or beyond, or has ever
