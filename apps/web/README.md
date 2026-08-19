@@ -238,8 +238,9 @@ keyboard-focusable and Enter/Space-activatable), `FilterBar`, `Badge` /
 triggering element on close — see "Dialog/Drawer a11y" below), `Pagination`,
 `Toast` (`ToastProvider` + `useToast()`), `Button`, `Input`, `Select`,
 `Spinner`, `EmptyState`, `LoadingState`, `ErrorState`, `DescriptionList` /
-`DescriptionItem` (see "Übersicht tab key-value layout" below). All are
-exported from `src/design-system/index.ts`.
+`DescriptionItem` (see "Übersicht tab key-value layout" below), `WizardSteps`
+(see "Wizard step indicator" below). All are exported from
+`src/design-system/index.ts`.
 
 **These are the conventions this pass established — later phases (per-page
 polish, critical workflows, history/audit, dashboard, public page) should
@@ -348,6 +349,32 @@ action, uploading a file, lives on a different tab). `FilesTab.tsx`'s
 client-side file-picker validation message, not a caught API error, same
 category as the "remaining sites" called out above.
 
+**Phase 3 (Applicability Editor, Publish Wizard, CSV Import wizard)**
+converted the internals of `features/applicability/` that Phase 2
+deliberately left alone: `RuleBuilderView.tsx`'s preview-fetch error
+(`previewError`, now `ErrorState` with a retry wired to `reloadPreview`)
+and its empty-rules-list message (now `EmptyState`, mirroring the
+"+ Regel hinzufügen" action into the empty state exactly like Phase 2's
+Variants/Units convention), `RuleMatrixView.tsx`'s `Table` `emptyMessage`,
+and `UnitPicker.tsx`'s unit-browse fetch error. Also converted in the
+wizards: `PublishWizardPage.tsx`'s Impact/Conflicts steps'
+`previewError`/`previewLoading` (now `ErrorState`/`LoadingState`, since
+the preview is the step's only content while loading — not an in-context
+indicator next to other interactive content), and
+`ImportWizardPage.tsx`'s file-analysis/mapping-preview errors and the
+review step's valid-rows-table `emptyMessage`. Left alone, matching the
+existing rule: `RuleBuilderView`'s/`RuleMatrixView`'s bare in-context
+`<Spinner>` while a preview reloads next to an already-interactive rule
+list (matches the "in-context indicator" exception above), the
+Viewer-role "you need Editor+" info paragraphs (not an error — an honest
+permission notice), `ConflictBanner` (structured domain output, not a
+generic error — see its own file comment), the CSV import's row-level
+validation-error list and duplicate/other stat tiles (same reason), and
+the several remaining business-rule `<p role="alert">` messages in both
+wizards (e.g. "keine gültigen Zeilen", "Konflikte bestehen laut letzter
+Vorschau") — none of these are caught exceptions, so none convert to
+`ErrorState`.
+
 ### Übersicht tab key-value layout (`DescriptionList`, `DescriptionItem`)
 
 Product Detail's and Document Detail's read-only "Übersicht" tab had
@@ -361,6 +388,55 @@ of `DescriptionItem` label/value rows (`<dt>`/`<dd>`), same bold-label/
 plain-value look as before. Use it for any future read-only key-value
 summary block — pass a `StatusBadge` as an item's `value` (as both Overview
 tabs do for the `Status` row) rather than reaching for the raw string.
+Phase 3 added a third use: `PublishWizardPage.tsx`'s step 1 ("Zu
+veröffentlichende Revision") replaced a hand-rolled raw `<dl><dt>/<dd>`
+block with `DescriptionList`/`DescriptionItem`. The Applicability Editor's
+per-rule cards were deliberately **not** converted — their scope
+description is a dynamic, backend-composed German sentence (`rp.description`
+/ `fallbackDescription`), not a label/value list, so it stays as prose next
+to its `Badge`s, matching `ConflictBanner`'s prose convention.
+
+### Wizard step indicator (`WizardSteps`)
+
+**Phase 3 (Applicability Editor, Publish Wizard, CSV Import wizard)** found
+the Publish Wizard and the CSV Import wizard had already converged on
+identical inline markup for their step indicator (a flat row of `Badge`
+pills, one per step) — same code, copy-pasted rather than shared. Both were
+also visually flatter than the numbered-circle/connector step indicator
+shown in the reference mockup (`images/Deutscher Veröffentlichungsassistent
+für Dokumente.png`). This pass extracted a shared
+`design-system/WizardSteps.tsx`: pass `steps: {key, label}[]` and
+`currentIndex`, it renders a done (green circle + checkmark) / current
+(filled blue circle) / upcoming (outline circle) sequence connected by
+lines, matching the mockup. It is purely presentational — no navigation
+logic, no opinion on which step is reachable, no validation; both wizards
+still own their own `stepIndex` state and back/next logic exactly as
+before. Any future multi-step flow should reuse this component rather than
+inventing another inline step-indicator pattern.
+
+### Matrix/Builder share visual treatment, not just data
+
+The Applicability Editor's Builder and Matrix views (`RuleBuilderView.tsx`,
+`RuleMatrixView.tsx`) already shared the same underlying rule + preview
+data (passed down from `useApplicabilityData` via `ApplicabilityTab.tsx` —
+see the "Design invariant" section above), but had drifted apart on how
+that data was *rendered*: Builder showed specificity and affected-unit
+counts as `Badge` pills (`<Badge tone="info">Spezifität {n}</Badge>`,
+`<Badge tone="neutral">{n} Einheiten betroffen</Badge>`), while Matrix
+rendered the same two numbers as plain table-cell text. Phase 3 fixed
+Matrix's `specificity`/`affectedUnitsCount` columns to render the identical
+`Badge` tone/text as Builder, so switching between the two tabs reads as
+the same rule set styled two ways (card vs. table), not two different
+data models. The conflict column is a deliberate, narrower exception: Matrix
+needs an explicit value in every row (`Ja`/`Nein`/`Bereits veröffentlicht`
+via `Badge` tone danger/success/neutral) since a table row can't just omit
+a cell, whereas Builder's per-rule card only shows a conflict `Badge` when
+one actually exists — same tone mapping, different (and correctly
+different) structural convention for card vs. table. **Any future field
+added to the preview response that both views render must follow the same
+rule: same `Badge` tone and text in both views, unless the view's structure
+(card vs. table row) genuinely requires a different presence/absence
+convention — don't let the two views' rendering re-diverge.**
 
 ### Dialog/Drawer a11y (`useFocusTrap`)
 
@@ -553,3 +629,27 @@ Organizations already expose), and the real dashboard (KPI tiles, charts).
   compares against every ACTIVE publication of the same document+language,
   including the revision's own), not a UI bug: you cannot re-publish an
   already-actively-published revision, and the UI surfaces that honestly.
+
+### Phase 3 responsive/UI polish notes
+
+- `RuleFormDrawer.tsx`'s form had a hardcoded `minWidth: "24rem"` (384px)
+  that didn't fit inside `Drawer`'s 420px panel once its 24px×2 padding is
+  subtracted (372px of usable width) — a genuine, pre-existing 12px
+  horizontal overflow inside the drawer at every viewport width, not just
+  narrow ones (confirmed via `drawer.scrollWidth` vs. `clientWidth` in a
+  live browser session, and visually as a thin horizontal scrollbar at the
+  bottom of the panel). Removed the `minWidth`; the form now simply fills
+  the drawer's actual content width, which is what was intended — nothing
+  inside `ScopeFields`/`UnitPicker` needed to change.
+- The CSV Import wizard's mapping step marks `serialNumber`/
+  `productReference` as required with a trailing ` *` on the `Select`
+  label — this predates Phase 3 and is the only place in the app using an
+  asterisk marker (single-field creation dialogs like
+  `CreateProductDialog.tsx` mark required fields with the native HTML
+  `required` attribute only, no visible marker, since every field in those
+  forms is obviously required). Judgment call: kept the `*` because the
+  mapping step is a dense multi-select grid mixing required and optional
+  fields, where a purely-native `required` attribute on a `<select>` isn't
+  visually discoverable — but also added the native `required` attribute
+  to those two `Select`s (previously missing) so the two conventions
+  layer rather than conflict.
