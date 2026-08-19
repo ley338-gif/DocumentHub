@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import {
+  EmptyState,
   ErrorState,
   FilterBar,
   LoadingState,
@@ -88,6 +89,8 @@ export function PublicationHistoryPage() {
     (p, ps) => listPublicationHistory(query, p, ps),
     [status, documentId, productId, from, to],
   );
+
+  const filtersActive = Boolean(status || documentId || productId || from || to);
 
   const columns: TableColumn<PublicationDto>[] = [
     {
@@ -184,7 +187,13 @@ export function PublicationHistoryPage() {
             rows={items}
             rowKey={(p) => p.id}
             onRowClick={(p) => setDetailId(p.id)}
-            emptyMessage="Keine Veröffentlichungen gefunden."
+            emptyMessage={
+              filtersActive ? (
+                <EmptyState title="Keine Veröffentlichungen gefunden" description="Passen Sie die Filter an." />
+              ) : (
+                <EmptyState title="Noch keine Veröffentlichungen" description="Diese Organisation hat bisher nichts veröffentlicht." />
+              )
+            }
           />
           <Pagination page={page} pageSize={pageSize} total={total} onPageChange={setPage} />
         </>

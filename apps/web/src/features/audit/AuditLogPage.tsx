@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { ErrorState, FilterBar, LoadingState, PageHeader, Pagination, Select, Table, type TableColumn } from "../../design-system";
+import { EmptyState, ErrorState, FilterBar, LoadingState, PageHeader, Pagination, Select, Table, type TableColumn } from "../../design-system";
 import type { AuditEventDto } from "../../lib/api-types";
 import { usePaginated } from "../../lib/use-paginated";
 import { KNOWN_ACTIONS, KNOWN_OBJECT_TYPES, listAuditEvents } from "./api";
@@ -45,6 +45,8 @@ export function AuditLogPage() {
     (p, ps) => listAuditEvents(query, p, ps),
     [search, action, objectType, actorId, from, to],
   );
+
+  const filtersActive = Boolean(search || action || objectType || actorId || from || to);
 
   // Actors seen on the currently loaded page — a pragmatic, role-safe
   // source for the filter dropdown (see file-level comment).
@@ -140,7 +142,13 @@ export function AuditLogPage() {
             rows={items}
             rowKey={(e) => e.id}
             onRowClick={(e) => setDetailEvent(e)}
-            emptyMessage="Keine Audit-Ereignisse gefunden."
+            emptyMessage={
+              filtersActive ? (
+                <EmptyState title="Keine Audit-Ereignisse gefunden" description="Passen Sie die Filter an." />
+              ) : (
+                <EmptyState title="Noch keine Audit-Ereignisse" description="Für diese Organisation wurden bisher keine Aktionen protokolliert." />
+              )
+            }
           />
           <Pagination page={page} pageSize={pageSize} total={total} onPageChange={setPage} />
         </>
