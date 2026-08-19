@@ -29,6 +29,7 @@ model Organization {
   updatedAt       DateTime @updatedAt
 
   memberships       OrganizationMembership[]
+  invitations        Invitation[]
   productFamilies    ProductFamily[]
   products           Product[]
   variants           ProductVariant[]
@@ -43,9 +44,15 @@ model Organization {
   @@map("organizations")
 }
 
+// TRIAL/ACTIVE both permit normal tenant work (see docs/platform-administration.md
+// "Tenant Lifecycle"). SUSPENDED blocks writes but never hides already-published
+// public documentation. CLOSED blocks all tenant-side access; data is retained,
+// never physically deleted by this status change.
 enum OrganizationStatus {
+  TRIAL
   ACTIVE
   SUSPENDED
+  CLOSED
 }
 
 model User {
@@ -54,17 +61,29 @@ model User {
   passwordHash String
   fullName     String
   status       UserStatus @default(ACTIVE)
+  // Platform-operator privilege — deliberately NOT an OrganizationMembership
+  // role. A PLATFORM_ADMIN needs no membership in any tenant to administer
+  // the platform, and a tenant ADMINISTRATOR membership never implies any
+  // platform privilege. See docs/platform-administration.md.
+  platformRole PlatformRole @default(USER)
   createdAt    DateTime @default(now())
   updatedAt    DateTime @updatedAt
+  lastLoginAt  DateTime?
 
-  memberships OrganizationMembership[]
+  memberships        OrganizationMembership[]
+  invitationsSent    Invitation[] @relation("InvitationsSent")
 
   @@map("users")
 }
 
 enum UserStatus {
   ACTIVE
-  DISABLED
+  SUSPENDED
+}
+
+enum PlatformRole {
+  USER
+  PLATFORM_ADMIN
 }
 
 model OrganizationMembership {
@@ -95,6 +114,44 @@ enum MembershipStatus {
   ACTIVE
   INVITED
   SUSPENDED
+}
+
+// Invitation is the sole onboarding path once REGISTRATION_MODE=INVITE_ONLY —
+// covers both "platform admin invites the first tenant administrator" and
+// "tenant administrator invites a colleague" through the same model/service.
+// The invitee need not have an account yet (see docs/platform-administration.md
+// "Invitation Flow"). Only tokenHash is stored; the raw token is shown once
+// to the inviter as a copyable link and never persisted.
+model Invitation {
+  id             String           @id @default(uuid())
+  tokenHash      String           @unique
+  email          String
+  organizationId String
+  role           MembershipRole
+  status         InvitationStatus @default(PENDING)
+
+  invitedById String
+  createdAt   DateTime @default(now())
+  expiresAt   DateTime
+  acceptedAt  DateTime?
+  revokedAt   DateTime?
+
+  acceptedByUserId String?
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  invitedBy    User         @relation("InvitationsSent", fields: [invitedById], references: [id])
+
+  @@index([organizationId])
+  @@index([email])
+  @@index([status])
+  @@map("invitations")
+}
+
+enum InvitationStatus {
+  PENDING
+  ACCEPTED
+  EXPIRED
+  REVOKED
 }
 
 // ---------------------------------------------------------------------------
@@ -481,4 +538,28 @@ model AuditEvent {
   @@index([organizationId, timestamp])
   @@index([organizationId, objectType, objectId])
   @@map("audit_events")
+}
+
+// The platform operator's own audit trail — deliberately separate from the
+// tenant-scoped AuditEvent above. Platform actions (tenant lifecycle, user
+// suspension, admin bootstrap) are not any single tenant's business record;
+// forcing them into a tenant's AuditEvent log would misrepresent operator
+// actions as tenant-internal history. Append-only, same as AuditEvent — no
+// update/delete path exists anywhere in this codebase for either table.
+model PlatformAuditEvent {
+  id         String   @id @default(uuid())
+  timestamp  DateTime @default(now())
+  actorId    String?
+  action     String
+  targetType String
+  targetId   String
+  before     Json?
+  after      Json?
+  requestId  String?
+  ipAddress  String?
+  userAgent  String?
+
+  @@index([timestamp])
+  @@index([targetType, targetId])
+  @@map("platform_audit_events")
 }

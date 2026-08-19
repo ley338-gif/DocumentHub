@@ -1,14 +1,16 @@
-import { MembershipRole } from "@prisma/client";
+import { MembershipRole, OrganizationStatus, PlatformRole } from "@prisma/client";
 
 export interface AuthenticatedUser {
   userId: string;
   email: string;
+  platformRole: PlatformRole;
 }
 
 export interface TenantContext {
   organizationId: string;
   membershipId: string;
   role: MembershipRole;
+  organizationStatus: OrganizationStatus;
 }
 
 // Populated on the Express Request object by JwtAuthGuard / TenantGuard.
@@ -23,6 +25,7 @@ declare global {
     interface User {
       userId: AuthenticatedUser["userId"];
       email: AuthenticatedUser["email"];
+      platformRole: AuthenticatedUser["platformRole"];
     }
 
     interface Request {
