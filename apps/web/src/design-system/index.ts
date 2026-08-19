@@ -17,3 +17,4 @@ export * from "./Breadcrumbs";
 export * from "./EmptyState";
 export * from "./LoadingState";
 export * from "./ErrorState";
+export * from "./DescriptionList";

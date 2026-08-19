@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { Button, Input, Select, StatusBadge, useToast } from "../../../design-system";
+import { Button, DescriptionItem, DescriptionList, Input, Select, StatusBadge, useToast } from "../../../design-system";
 import type { Product, ProductFamily } from "../../../lib/api-types";
 import { ApiError } from "../../../lib/api-error";
 import { updateProduct } from "../api";
@@ -88,16 +88,18 @@ export function OverviewTab({ product, families, canWrite, onUpdated }: Overview
   }
 
   return (
-    <div style={{ display: "flex", flexDirection: "column", gap: "0.5rem", maxWidth: "32rem" }}>
-      <Field label="Name" value={product.name} />
-      <Field label="Interne Produktnummer" value={product.internalProductNumber ?? "–"} />
-      <Field label="Modellbezeichnung" value={product.modelDesignation ?? "–"} />
-      <Field label="Produktfamilie" value={families.find((f) => f.id === product.productFamilyId)?.name ?? "–"} />
-      <Field label="Beschreibung" value={product.description ?? "–"} />
-      <div>
-        <span style={{ fontWeight: 600 }}>Status: </span>
-        <StatusBadge status={product.status} />
-      </div>
+    <div style={{ display: "flex", flexDirection: "column", gap: "1rem" }}>
+      <DescriptionList>
+        <DescriptionItem label="Name" value={product.name} />
+        <DescriptionItem label="Interne Produktnummer" value={product.internalProductNumber ?? "–"} />
+        <DescriptionItem label="Modellbezeichnung" value={product.modelDesignation ?? "–"} />
+        <DescriptionItem
+          label="Produktfamilie"
+          value={families.find((f) => f.id === product.productFamilyId)?.name ?? "–"}
+        />
+        <DescriptionItem label="Beschreibung" value={product.description ?? "–"} />
+        <DescriptionItem label="Status" value={<StatusBadge status={product.status} />} />
+      </DescriptionList>
       {canWrite && (
         <div>
           <Button variant="outline" onClick={startEdit}>
@@ -105,15 +107,6 @@ export function OverviewTab({ product, families, canWrite, onUpdated }: Overview
           </Button>
         </div>
       )}
-    </div>
-  );
-}
-
-function Field({ label, value }: { label: string; value: string }) {
-  return (
-    <div>
-      <span style={{ fontWeight: 600 }}>{label}: </span>
-      <span>{value}</span>
     </div>
   );
 }
