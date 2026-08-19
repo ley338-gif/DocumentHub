@@ -6,13 +6,15 @@ export interface AppShellProps {
   navItems: SidebarNavItem[];
   topbarActions?: ReactNode;
   children: ReactNode;
+  /** Passed straight through to Sidebar — see its docs. */
+  sidebarSubtitle?: string;
 }
 
 /** Top bar + sidebar layout shell for the authenticated tree. */
-export function AppShell({ navItems, topbarActions, children }: AppShellProps) {
+export function AppShell({ navItems, topbarActions, children, sidebarSubtitle }: AppShellProps) {
   return (
     <div className={styles.shell}>
-      <Sidebar items={navItems} />
+      <Sidebar items={navItems} subtitle={sidebarSubtitle} />
       <div className={styles.main}>
         <header className={styles.topbar}>
           <div />

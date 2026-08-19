@@ -29,6 +29,13 @@ interface AuthState {
   createOrganization: (name: string) => Promise<void>;
   logout: () => void;
   switchOrganization: (organizationId: string) => void;
+  /** Adopts a session issued outside login()/register() — used by the
+   * invitation-accept flow when a brand-new account is created inline. */
+  setSession: (accessToken: string, user: AuthUser) => Promise<void>;
+  /** Re-fetches the organization list (e.g. after accepting an invitation
+   * into an org the store doesn't know about yet) and optionally switches
+   * to one specific org once it appears. */
+  refreshOrganizations: (switchToOrganizationId?: string) => Promise<void>;
 }
 
 async function loadOrganizations(): Promise<Organization[]> {
@@ -138,5 +145,24 @@ export const useAuthStore = create<AuthState>((set, get) => ({
     if (!get().organizations.some((o) => o.id === organizationId)) return;
     setStoredOrganizationId(organizationId);
     set({ currentOrganizationId: organizationId });
+  },
+
+  setSession: async (accessToken: string, user: AuthUser) => {
+    setStoredToken(accessToken);
+    set({ token: accessToken, user });
+    const organizations = await loadOrganizations();
+    const currentOrganizationId = organizations[0]?.id ?? null;
+    setStoredOrganizationId(currentOrganizationId);
+    set({ organizations, currentOrganizationId, status: "authenticated", error: null });
+  },
+
+  refreshOrganizations: async (switchToOrganizationId?: string) => {
+    const organizations = await loadOrganizations();
+    const currentOrganizationId =
+      switchToOrganizationId && organizations.some((o) => o.id === switchToOrganizationId)
+        ? switchToOrganizationId
+        : (get().currentOrganizationId ?? organizations[0]?.id ?? null);
+    setStoredOrganizationId(currentOrganizationId);
+    set({ organizations, currentOrganizationId });
   },
 }));

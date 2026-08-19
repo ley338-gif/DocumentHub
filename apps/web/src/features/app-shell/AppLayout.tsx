@@ -10,6 +10,7 @@ const NAV_ITEMS = [
   { label: "Dokumente", to: "/app/documents" },
   { label: "Veröffentlichungen", to: "/app/publications" },
   { label: "Audit", to: "/app/audit" },
+  { label: "Einstellungen", to: "/app/settings/users" },
 ];
 
 export function AppLayout() {
@@ -46,6 +47,11 @@ export function AppLayout() {
             <span className={styles.userName}>{user?.fullName}</span>
             <span className={styles.userRole}>{currentOrg?.role}</span>
           </div>
+          {user?.platformRole === "PLATFORM_ADMIN" && (
+            <Button variant="ghost" size="sm" onClick={() => navigate("/platform")}>
+              Platform Administration
+            </Button>
+          )}
           <Button variant="secondary" size="sm" onClick={handleLogout}>
             Abmelden
           </Button>

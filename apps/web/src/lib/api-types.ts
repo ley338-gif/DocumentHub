@@ -3,11 +3,14 @@
 // the API exactly — see AuthService.toPublicUser/login/me and
 // OrganizationsService.listForUser.
 
+export type PlatformRole = "USER" | "PLATFORM_ADMIN";
+
 export interface AuthUser {
   id: string;
   email: string;
   fullName: string;
   status: string;
+  platformRole: PlatformRole;
 }
 
 export interface LoginResponse {
@@ -374,4 +377,141 @@ export interface ImportPreviewResponseDto {
 export interface ImportCommitResponseDto {
   importId: string;
   importedCount: number;
+}
+
+// --- Invitations (apps/api/src/invitations) ---
+
+export type InvitationStatus = "PENDING" | "ACCEPTED" | "EXPIRED" | "REVOKED";
+
+export interface InvitationDto {
+  id: string;
+  email: string;
+  organizationId: string;
+  role: string;
+  status: InvitationStatus;
+  invitedById: string;
+  createdAt: string;
+  expiresAt: string;
+  acceptedAt: string | null;
+  revokedAt: string | null;
+  acceptedByUserId: string | null;
+}
+
+export interface CreateInvitationResponseDto {
+  invitation: InvitationDto;
+  token: string;
+}
+
+export interface InvitationPreviewDto {
+  email: string;
+  role: string;
+  organizationName: string;
+  expiresAt: string;
+}
+
+export interface AcceptInvitationResponseDto {
+  createdNewAccount: boolean;
+  accessToken?: string;
+  organizationId: string;
+}
+
+// --- Platform administration (apps/api/src/platform) ---
+
+export type TenantLifecycleStatus = "TRIAL" | "ACTIVE" | "SUSPENDED" | "CLOSED";
+
+export interface PlatformTenantListItemDto {
+  id: string;
+  stableId: string;
+  name: string;
+  slug: string;
+  status: TenantLifecycleStatus;
+  createdAt: string;
+  users: number;
+  products: number;
+  units: number;
+  documents: number;
+  activePublications: number;
+  storageBytes: number;
+}
+
+export interface PlatformTenantUsage {
+  users: number;
+  products: number;
+  variants: number;
+  units: number;
+  documents: number;
+  revisions: number;
+  activePublications: number;
+  storageBytes: number;
+}
+
+export interface PlatformTenantDetailDto {
+  id: string;
+  stableId: string;
+  name: string;
+  slug: string;
+  status: TenantLifecycleStatus;
+  defaultLanguage: string;
+  timezone: string;
+  createdAt: string;
+  usage: PlatformTenantUsage;
+}
+
+export interface CreateTenantResponseDto {
+  tenant: { id: string; name: string; slug: string; status: TenantLifecycleStatus };
+  invitation: InvitationDto;
+  invitationToken: string;
+}
+
+export interface PlatformDashboardSummaryDto {
+  tenants: { total: number; active: number; trial: number; suspended: number; closed: number };
+  users: number;
+  products: number;
+  units: number;
+  documents: number;
+  activePublications: number;
+  storageBytes: number;
+}
+
+export interface PlatformUserMembershipDto {
+  organizationId: string;
+  organizationName: string;
+  role: string;
+  status: string;
+}
+
+export interface PlatformUserDto {
+  id: string;
+  email: string;
+  fullName: string;
+  status: "ACTIVE" | "SUSPENDED";
+  platformRole: PlatformRole;
+  createdAt: string;
+  lastLoginAt: string | null;
+  memberships: PlatformUserMembershipDto[];
+}
+
+export interface PlatformAuditEventDto {
+  id: string;
+  timestamp: string;
+  actorId: string | null;
+  action: string;
+  targetType: string;
+  targetId: string;
+  before?: unknown;
+  after?: unknown;
+  requestId?: string | null;
+  ipAddress?: string | null;
+  userAgent?: string | null;
+}
+
+export interface PlatformSystemSnapshotDto {
+  version: string;
+  environment: string;
+  registrationMode: "INVITE_ONLY" | "SELF_SERVICE";
+  publicBaseUrl: string | null;
+  storageDriver: string;
+  database: { healthy: boolean };
+  storage: { healthy: boolean };
+  lastMigration: { name: string; appliedAt: string | null } | null;
 }

@@ -11,6 +11,10 @@ export type ApiErrorCode =
   | "PUBLICATION_CONFLICT"
   | "FILE_VALIDATION_FAILED"
   | "IMPORT_VALIDATION_FAILED"
+  | "TENANT_SUSPENDED"
+  | "TENANT_CLOSED"
+  | "INVITATION_LOGIN_REQUIRED"
+  | "LAST_ADMIN_PROTECTED"
   | "INTERNAL_ERROR"
   | "NETWORK_ERROR";
 
@@ -53,6 +57,14 @@ export class ApiError extends Error {
         return "Die Datei konnte nicht validiert werden.";
       case "IMPORT_VALIDATION_FAILED":
         return "Der Import enthält ungültige Daten.";
+      case "TENANT_SUSPENDED":
+        return "Diese Organisation ist gesperrt. Änderungen sind derzeit nicht möglich.";
+      case "TENANT_CLOSED":
+        return "Diese Organisation wurde geschlossen.";
+      case "INVITATION_LOGIN_REQUIRED":
+        return "Bitte melden Sie sich an, um diese Einladung anzunehmen.";
+      case "LAST_ADMIN_PROTECTED":
+        return "Diese Organisation benötigt mindestens einen aktiven Administrator.";
       case "NETWORK_ERROR":
         return "Die Verbindung zum Server ist fehlgeschlagen. Bitte prüfen Sie Ihre Internetverbindung.";
       default:
