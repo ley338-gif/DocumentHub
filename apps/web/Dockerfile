@@ -17,7 +17,11 @@ WORKDIR /repo
 COPY package.json package-lock.json ./
 COPY apps/web/package.json apps/web/package.json
 COPY apps/api/package.json apps/api/package.json
-RUN npm ci
+# See apps/api/Dockerfile's identical retry loop — real ECONNRESET
+# failures during `npm ci` (a sub-dependency's own binary download, not
+# npm's own package fetch, so npm's fetch-retries config can't help)
+# seen on this project's own Linux host validation.
+RUN set -e; for i in 1 2 3 4; do npm ci && exit 0; echo "npm ci failed (attempt $i/5), retrying in 10s..."; sleep 10; done; npm ci
 
 COPY apps/web apps/web
 
@@ -42,6 +46,6 @@ COPY --from=build /repo/apps/web/dist /usr/share/nginx/html
 EXPOSE 80
 
 HEALTHCHECK --interval=10s --timeout=5s --retries=10 --start-period=5s \
-  CMD wget -q -O /dev/null http://localhost/ || exit 1
+  CMD wget -q -O /dev/null http://127.0.0.1/ || exit 1
 
 CMD ["nginx", "-g", "daemon off;"]

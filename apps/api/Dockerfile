@@ -27,7 +27,13 @@ FROM base AS deps
 COPY package.json package-lock.json ./
 COPY apps/api/package.json apps/api/package.json
 COPY apps/web/package.json apps/web/package.json
-RUN npm ci
+# @prisma/engines' postinstall script downloads its engine binaries with
+# its own network client (not npm's package-fetch path — npm's own
+# fetch-retries config has no effect on it), and that download has
+# genuinely seen ECONNRESET during this project's own Linux host
+# validation. A shell-level retry around the whole command is the
+# reliable fix regardless of which sub-download inside `npm ci` flakes.
+RUN set -e; for i in 1 2 3 4; do npm ci && exit 0; echo "npm ci failed (attempt $i/5), retrying in 10s..."; sleep 10; done; npm ci
 
 # ---- build --------------------------------------------------------------
 FROM deps AS build
@@ -43,7 +49,8 @@ FROM base AS prod-deps
 COPY package.json package-lock.json ./
 COPY apps/api/package.json apps/api/package.json
 COPY apps/web/package.json apps/web/package.json
-RUN npm ci --omit=dev --workspace apps/api --include-workspace-root
+# See the `deps` stage's identical retry loop for why.
+RUN set -e; for i in 1 2 3 4; do npm ci --omit=dev --workspace apps/api --include-workspace-root && exit 0; echo "npm ci failed (attempt $i/5), retrying in 10s..."; sleep 10; done; npm ci --omit=dev --workspace apps/api --include-workspace-root
 
 # ---- migrate --------------------------------------------------------------
 # A separate, short-lived target for `prisma migrate deploy` only. Reuses
