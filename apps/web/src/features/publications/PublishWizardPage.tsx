@@ -279,7 +279,11 @@ export function PublishWizardPage() {
                 disabled={publishing || hasConflicts || previewLoading || !preview}
                 variant="primary"
               >
-                {publishing ? "Wird veröffentlicht…" : "Jetzt veröffentlichen"}
+                {publishing
+                  ? "Wird veröffentlicht…"
+                  : isOnlyAlreadyPublished
+                    ? "Bereits veröffentlicht"
+                    : "Jetzt veröffentlichen"}
               </Button>
             </div>
           )}
