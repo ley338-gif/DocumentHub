@@ -1,5 +1,6 @@
 import { Body, Controller, Get, Param, Post, Delete, UseGuards, Req } from "@nestjs/common";
 import { Request } from "express";
+import { SkipThrottle, Throttle, ThrottlerGuard } from "@nestjs/throttler";
 import { JwtAuthGuard } from "../common/guards/jwt-auth.guard";
 import { TenantGuard } from "../common/guards/tenant.guard";
 import { RolesGuard } from "../common/guards/roles.guard";
@@ -65,7 +66,9 @@ export class PublicInvitationsController {
     return this.invitations.preview(token);
   }
 
-  @UseGuards(OptionalJwtAuthGuard)
+  @UseGuards(OptionalJwtAuthGuard, ThrottlerGuard)
+  @SkipThrottle({ default: true })
+  @Throttle({ auth: {} })
   @Post(":token/accept")
   accept(@Param("token") token: string, @Body() dto: AcceptInvitationDto, @Req() req: Request) {
     const authenticatedUser = req.user ? { userId: req.user.userId, email: req.user.email } : null;
