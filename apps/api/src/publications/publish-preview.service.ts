@@ -7,10 +7,34 @@ import { specificity } from "../applicability/specificity";
 import { countAffectedUnits } from "../applicability/affected-units";
 import { findConflicts } from "./conflict-detection";
 
+// Structured scope, alongside `description` (a presentation convenience,
+// not the source of truth). Keeping both means the UI never has to parse
+// the German sentence back apart to build a form, a future localization
+// pass doesn't need backend changes, and tests can assert on real fields
+// instead of substring-matching prose.
+export interface RulePreviewScope {
+  productFamilyId: string | null;
+  productFamilyName: string | null;
+  productId: string | null;
+  productName: string | null;
+  variantId: string | null;
+  variantName: string | null;
+  batchId: string | null;
+  batchName: string | null;
+  unitId: string | null;
+  unitSerialNumber: string | null;
+  serialFrom: string | null;
+  serialTo: string | null;
+  validFrom: string | null;
+  validUntil: string | null;
+  explicitExclusion: boolean;
+}
+
 export interface RulePreview {
   ruleId: string;
   specificity: number;
   description: string;
+  scope: RulePreviewScope;
   affectedUnitsCount: number;
 }
 
@@ -66,6 +90,7 @@ export class PublishPreviewService {
       ruleId: rule.id,
       specificity: specificity(rule),
       description: describeRule(rule, names),
+      scope: toScope(rule, names),
       affectedUnitsCount: affected.perRule[rule.id] ?? 0,
     }));
 
@@ -156,4 +181,25 @@ function describeRule(rule: AppliedRuleSnapshot, names: Map<string, string>): st
 
   const scope = parts.length > 0 ? parts.join(", ") : "Gesamte Organisation (keine Einschränkung)";
   return rule.explicitExclusion ? `Ausschluss: ${scope}` : `Gilt für: ${scope}`;
+}
+
+function toScope(rule: AppliedRuleSnapshot, names: Map<string, string>): RulePreviewScope {
+  const name = (id: string | null) => (id ? (names.get(id) ?? null) : null);
+  return {
+    productFamilyId: rule.productFamilyId,
+    productFamilyName: name(rule.productFamilyId),
+    productId: rule.productId,
+    productName: name(rule.productId),
+    variantId: rule.variantId,
+    variantName: name(rule.variantId),
+    batchId: rule.batchId,
+    batchName: name(rule.batchId),
+    unitId: rule.unitId,
+    unitSerialNumber: name(rule.unitId),
+    serialFrom: rule.serialFrom,
+    serialTo: rule.serialTo,
+    validFrom: rule.validFrom,
+    validUntil: rule.validUntil,
+    explicitExclusion: rule.explicitExclusion,
+  };
 }
