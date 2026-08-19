@@ -4,6 +4,13 @@ import { ApiError } from "../../lib/api-error";
 import type { AuthUser, LoginResponse, Organization } from "../../lib/api-types";
 import { getStoredOrganizationId, getStoredToken, setStoredOrganizationId, setStoredToken } from "../../lib/session-storage";
 
+interface RegisteredUser {
+  id: string;
+  email: string;
+  fullName: string;
+  status: string;
+}
+
 export type AuthStatus = "idle" | "loading" | "authenticated" | "unauthenticated";
 
 interface AuthState {
@@ -17,7 +24,9 @@ interface AuthState {
   /** Restores a session from a token already in localStorage (e.g. after a
    * page refresh). Safe to call multiple times. */
   bootstrap: () => Promise<void>;
+  register: (email: string, password: string, fullName: string) => Promise<void>;
   login: (email: string, password: string) => Promise<void>;
+  createOrganization: (name: string) => Promise<void>;
   logout: () => void;
   switchOrganization: (organizationId: string) => void;
 }
@@ -60,6 +69,21 @@ export const useAuthStore = create<AuthState>((set, get) => ({
     }
   },
 
+  register: async (email: string, password: string, fullName: string) => {
+    set({ status: "loading", error: null });
+    try {
+      await apiRequest<RegisteredUser>("/api/auth/register", {
+        method: "POST",
+        body: { email, password, fullName },
+      });
+    } catch (err) {
+      const message = err instanceof ApiError ? err.userMessage : "Registrierung fehlgeschlagen.";
+      set({ status: "unauthenticated", error: message });
+      throw err;
+    }
+    await get().login(email, password);
+  },
+
   login: async (email: string, password: string) => {
     set({ status: "loading", error: null });
     try {
@@ -77,6 +101,22 @@ export const useAuthStore = create<AuthState>((set, get) => ({
     } catch (err) {
       const message = err instanceof ApiError ? err.userMessage : "Anmeldung fehlgeschlagen.";
       set({ status: "unauthenticated", error: message });
+      throw err;
+    }
+  },
+
+  createOrganization: async (name: string) => {
+    try {
+      const organization = await apiRequest<Organization>("/api/organizations", {
+        method: "POST",
+        body: { name },
+      });
+      const organizations = await loadOrganizations();
+      setStoredOrganizationId(organization.id);
+      set({ organizations, currentOrganizationId: organization.id, error: null });
+    } catch (err) {
+      const message = err instanceof ApiError ? err.userMessage : "Organisation konnte nicht erstellt werden.";
+      set({ error: message });
       throw err;
     }
   },

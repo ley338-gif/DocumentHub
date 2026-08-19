@@ -1,6 +1,7 @@
 import { Navigate, Route, Routes } from "react-router-dom";
 import { RequireAuth } from "./features/auth/RequireAuth";
 import { LoginPage } from "./features/auth/LoginPage";
+import { RegisterPage } from "./features/auth/RegisterPage";
 import { AppLayout } from "./features/app-shell/AppLayout";
 import { DashboardPage } from "./features/dashboard/DashboardPage";
 import { PublicProductPage } from "./features/public/PublicProductPage";
@@ -23,6 +24,7 @@ export default function App() {
       <Route path="/u/:stableId" element={<PublicUnitPage />} />
 
       <Route path="/login" element={<LoginPage />} />
+      <Route path="/register" element={<RegisterPage />} />
 
       {/* Authenticated app tree. Products, Documents, the applicability rule
           editor, the publish wizard, CSV import, Publication History, and
