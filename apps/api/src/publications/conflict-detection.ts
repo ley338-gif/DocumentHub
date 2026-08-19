@@ -6,6 +6,13 @@ import { rulesCouldOverlap } from "./rules-overlap";
 export interface ConflictDescriptor {
   existingPublicationId: string;
   existingPublicationStableId: string;
+  // The revision the conflicting ACTIVE publication actually belongs to.
+  // Callers (currently PublishPreviewService) use this to tell a real
+  // conflict against a *different* revision apart from a revision
+  // "conflicting" against its own already-active publication (which is not
+  // a competing-rule situation at all, just "this exact revision is
+  // already published") — see docs/publication-lifecycle.md.
+  existingPublicationRevisionId: string;
   newRuleId: string;
   conflictingRuleId: string;
 }
@@ -53,6 +60,7 @@ export async function findConflicts(
           conflicts.push({
             existingPublicationId: existing.id,
             existingPublicationStableId: existing.stableId,
+            existingPublicationRevisionId: existing.documentRevisionId,
             newRuleId: newRule.id,
             conflictingRuleId: existingRule.id,
           });

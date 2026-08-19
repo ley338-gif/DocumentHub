@@ -127,6 +127,29 @@ checks them against real data: for the same set of units and rules, it
 filters in-memory with `ruleScopeMatches` and counts in SQL with
 `countAffectedUnits`, and asserts the numbers agree.
 
+**"Already published" vs a real conflict:** `findConflicts()` correctly
+reports a "conflict" when you preview (or attempt to re-publish) a
+revision that is already ACTIVE with an unchanged rule set — it's
+comparing the revision's live rules against every ACTIVE publication for
+the same resolution key, and the revision's own existing publication is
+one of those. This is desirable at the *detection* level: it's exactly
+what stops a redundant duplicate `POST /api/publications` for the same
+revision (the real endpoint still correctly 409s). We deliberately did
+**not** change `findConflicts()` or `PublishService` to special-case this
+— conflict detection stays a single, unwatered implementation.
+
+What changed is presentation only: `PublishPreviewService` compares each
+conflict's `existingPublicationRevisionId` (now returned by
+`findConflicts`) against the revision being previewed and labels the
+result `reason: "ALREADY_PUBLISHED"` instead of `"CONFLICT"` when they're
+the same revision. `canPublish` is unaffected — it's still `false`
+whenever any conflict is present, matching the fact that the real publish
+endpoint would still reject either case; only the *reason* differs, so a
+UI can render "Diese Revision ist für diesen Gültigkeitsbereich bereits
+veröffentlicht" instead of a red "Konflikt mit einer anderen
+Veröffentlichung" for a case that isn't actually a competing revision.
+See `test/publish-preview-already-published.e2e-spec.ts`.
+
 ## Immutability
 
 Once a `DocumentRevision` reaches `APPROVED` or beyond, or has ever
